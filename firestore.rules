@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+
+    // Validation Blueprint for Player
+    function isValidPlayer(data) {
+      return data.keys().hasAll(['name', 'type', 'rating', 'paymentStatus', 'isGoalkeeper', 'isPresent', 'stats', 'ownerId', 'updatedAt'])
+        && data.name is string 
+        && data.type in ['mensalista', 'avulso']
+        && data.rating is number
+        && data.paymentStatus in ['pago', 'pendente', 'atrasado']
+        && data.isGoalkeeper is bool
+        && data.isPresent is bool
+        && data.stats is map
+        && data.ownerId == request.auth.uid
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint for Match
+    function isValidMatch(data) {
+      return data.keys().hasAll(['teamA', 'teamB', 'status', 'events', 'ownerId', 'updatedAt'])
+        && data.teamA is map
+        && data.teamB is map
+        && data.status in ['not_started', 'in_progress', 'finished']
+        && data.events is list
+        && data.ownerId == request.auth.uid
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint for Settings
+    function isValidSettings(data) {
+      return data.keys().hasAll(['ownerId', 'updatedAt'])
+        && data.ownerId == request.auth.uid
+        && data.updatedAt is timestamp;
+    }
+
+    match /shared/data {
+      match /players/{playerId} {
+        allow read, list: if isSignedIn();
+        
+        allow create: if isSignedIn() 
+          && isValidId(playerId)
+          && isValidPlayer(incoming())
+          && incoming().updatedAt == request.time;
+          
+        allow update: if isSignedIn()
+          && isValidId(playerId)
+          && isValidPlayer(incoming())
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isSignedIn() && isValidId(playerId);
+      }
+
+      match /matches/{matchId} {
+        allow read, list: if isSignedIn();
+        
+        allow create: if isSignedIn() 
+          && isValidId(matchId)
+          && isValidMatch(incoming())
+          && incoming().updatedAt == request.time;
+          
+        allow update: if isSignedIn()
+          && isValidId(matchId)
+          && isValidMatch(incoming())
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isSignedIn() && isValidId(matchId);
+      }
+
+      match /settings/app {
+        allow read, list: if isSignedIn();
+        
+        allow create: if isSignedIn() 
+          && isValidSettings(incoming())
+          && incoming().updatedAt == request.time;
+          
+        allow update: if isSignedIn()
+          && isValidSettings(incoming())
+          && incoming().ownerId == existing().ownerId
+          && incoming().updatedAt == request.time;
+      }
+    }
+  }
+}

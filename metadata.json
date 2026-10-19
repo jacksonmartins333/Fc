@@ -1,0 +1,8 @@
+{
+  "name": "Grota F.C",
+  "description": "Gerenciador completo para a sua pelada: controle de presença, financeiro, sorteio de times e estatísticas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

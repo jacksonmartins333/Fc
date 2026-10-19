@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "Player": {
+      "title": "Player",
+      "description": "Represents a player in the pelada.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["mensalista", "avulso"] },
+        "rating": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["pago", "pendente", "atrasado"] },
+        "isGoalkeeper": { "type": "boolean" },
+        "isPresent": { "type": "boolean" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "goals": { "type": "number" },
+            "assists": { "type": "number" },
+            "matchesWon": { "type": "number" },
+            "matchesPlayed": { "type": "number" },
+            "goalsConceded": { "type": "number" }
+          }
+        },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["name", "type", "rating", "paymentStatus", "isGoalkeeper", "isPresent", "stats", "ownerId", "createdAt", "updatedAt"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Represents a pelada match.",
+      "type": "object",
+      "properties": {
+        "teamA": { "type": "object" },
+        "teamB": { "type": "object" },
+        "status": { "type": "string", "enum": ["not_started", "in_progress", "finished"] },
+        "events": { "type": "array" },
+        "startTime": { "type": "number" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["teamA", "teamB", "status", "events", "ownerId", "createdAt", "updatedAt"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "App settings for the user",
+      "type": "object",
+      "properties": {
+        "pixKey": { "type": "string" },
+        "maxPlayersPerTeam": { "type": "number" },
+        "numberOfTeams": { "type": "number" },
+        "ownerId": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["ownerId", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}/players/{playerId}": {
+      "schema": { "$ref": "#/entities/Player" },
+      "description": "Players managed by the user"
+    },
+    "users/{userId}/matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Matches managed by the user"
+    },
+    "users/{userId}/settings/app": {
+      "schema": { "$ref": "#/entities/Settings" },
+      "description": "Settings for the user's pelada"
+    }
+  }
+}
