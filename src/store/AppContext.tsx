@@ -5,6 +5,9 @@ import {
   subscribeToPlayers, subscribeToMatches, subscribeToSettings, 
   savePlayer, deletePlayer, saveMatch, saveSettings 
 } from '../lib/db';
+import { 
+  saveToSupabase, loadFromSupabase, getSupabaseConfig 
+} from '../lib/supabase';
 
 interface AppState {
   players: Player[];
@@ -29,6 +32,9 @@ interface AppContextType extends AppState {
   setMaxPlayersPerTeam: (max: number) => void;
   setNumberOfTeams: (num: number) => void;
   setPixKey: (key: string) => void;
+  exportBackup: () => string;
+  restoreBackup: (jsonData: any) => boolean;
+  syncSupabaseNow: () => Promise<{ success: boolean; error?: string }>;
 }
 
 const defaultState: AppState = {
@@ -78,10 +84,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('pelada_fc_state', JSON.stringify(state));
+    const { isConfigured } = getSupabaseConfig();
+    if (isConfigured) {
+      const timer = setTimeout(() => {
+        saveToSupabase(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
   }, [state]);
 
   useEffect(() => {
-    if (!user) return;
+    const { isConfigured } = getSupabaseConfig();
+    if (isConfigured) {
+      loadFromSupabase().then(res => {
+        if (res.success && res.data) {
+          setState(s => ({
+            ...s,
+            ...res.data,
+            players: Array.isArray(res.data.players) && res.data.players.length > 0 ? res.data.players : s.players,
+            matches: Array.isArray(res.data.matches) ? res.data.matches : s.matches,
+          }));
+        }
+      });
+    }
+  }, []);
+
+  const isFirebaseUser = Boolean(user && user.uid && user.uid !== 'guest_local');
+
+  useEffect(() => {
+    if (!isFirebaseUser || !user) return;
     
     const unsubPlayers = subscribeToPlayers(user.uid, (firestorePlayers) => {
       setState(s => {
@@ -121,7 +152,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       unsubMatches();
       unsubSettings();
     };
-  }, [user]);
+  }, [user, isFirebaseUser]);
 
   const addPlayer = (playerData: Omit<Player, 'id' | 'stats' | 'isPresent'>) => {
     const newPlayer: Player = {
@@ -131,7 +162,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 },
     };
     setState(s => ({ ...s, players: [...s.players, newPlayer] }));
-    if (user) savePlayer(user.uid, newPlayer, true);
+    if (isFirebaseUser && user) savePlayer(user.uid, newPlayer, true);
   };
 
   const updatePlayer = (id: string, updates: Partial<Player>) => {
@@ -144,12 +175,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       players: s.players.map(p => p.id === id ? updatedPlayer : p)
     }));
     
-    if (user) savePlayer(user.uid, updatedPlayer, false);
+    if (isFirebaseUser && user) savePlayer(user.uid, updatedPlayer, false);
   };
 
   const deletePlayerAction = (id: string) => {
     setState(s => ({ ...s, players: s.players.filter(p => p.id !== id) }));
-    if (user) deletePlayer(user.uid, id);
+    if (isFirebaseUser && user) deletePlayer(user.uid, id);
   };
 
   const togglePresence = (id: string) => {
@@ -170,7 +201,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       players: s.players.map(p => p.id === id ? updatedPlayer : p)
     }));
     
-    if (user) savePlayer(user.uid, updatedPlayer, false);
+    if (isFirebaseUser && user) savePlayer(user.uid, updatedPlayer, false);
   };
 
   const setPaymentStatus = (id: string, status: Player['paymentStatus']) => {
@@ -237,7 +268,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       startTime: Date.now(),
     };
     setState(s => ({ ...s, matches: [...s.matches, newMatch] }));
-    if (user) saveMatch(user.uid, newMatch, true);
+    if (isFirebaseUser && user) saveMatch(user.uid, newMatch, true);
   };
 
   const updateMatchScore = (matchId: string, teamId: string, type: 'goal' | 'assist', playerId?: string) => {
@@ -274,7 +305,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setState(s => ({ ...s, matches: newMatches }));
     
-    if (user && updatedMatch) saveMatch(user.uid, updatedMatch, false);
+    if (isFirebaseUser && user && updatedMatch) saveMatch(user.uid, updatedMatch, false);
   };
 
   const finishMatch = (matchId: string) => {
@@ -323,10 +354,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setState(s => ({ ...s, matches: newMatches, players: newPlayers }));
     
-    if (user) {
+    if (isFirebaseUser && user) {
       saveMatch(user.uid, updatedMatch, false);
       modifiedPlayers.forEach(p => savePlayer(user.uid, p, false));
     }
+  };
+
+  const exportBackup = () => {
+    return JSON.stringify(state, null, 2);
+  };
+
+  const restoreBackup = (jsonData: any) => {
+    try {
+      const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+      if (!data || !Array.isArray(data.players)) {
+        return false;
+      }
+      setState(s => ({
+        ...s,
+        ...data,
+        players: data.players || s.players,
+        matches: Array.isArray(data.matches) ? data.matches : s.matches,
+      }));
+      const { isConfigured } = getSupabaseConfig();
+      if (isConfigured) {
+        saveToSupabase(data);
+      }
+      return true;
+    } catch (e) {
+      console.error('Failed to restore backup:', e);
+      return false;
+    }
+  };
+
+  const syncSupabaseNow = async () => {
+    return await saveToSupabase(state);
   };
 
   return (
@@ -345,16 +407,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       finishMatch,
       setMaxPlayersPerTeam: (max) => {
         setState(s => ({ ...s, maxPlayersPerTeam: max }));
-        if (user) saveSettings(user.uid, { maxPlayersPerTeam: max }, false);
+        if (isFirebaseUser && user) saveSettings(user.uid, { maxPlayersPerTeam: max }, false);
       },
       setNumberOfTeams: (num) => {
         setState(s => ({ ...s, numberOfTeams: num }));
-        if (user) saveSettings(user.uid, { numberOfTeams: num }, false);
+        if (isFirebaseUser && user) saveSettings(user.uid, { numberOfTeams: num }, false);
       },
       setPixKey: (key) => {
         setState(s => ({ ...s, pixKey: key }));
-        if (user) saveSettings(user.uid, { pixKey: key }, false);
-      }
+        if (isFirebaseUser && user) saveSettings(user.uid, { pixKey: key }, false);
+      },
+      exportBackup,
+      restoreBackup,
+      syncSupabaseNow
     }}>
       {children}
     </AppContext.Provider>

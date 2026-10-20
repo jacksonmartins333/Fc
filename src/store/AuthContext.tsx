@@ -10,33 +10,66 @@ interface AuthContextType {
   error: string | null;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  continueAsGuest: () => void;
   clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [needsAuth, setNeedsAuth] = useState(true);
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    return {
+      uid: 'guest_local',
+      displayName: 'Peladeiro',
+      email: '',
+      photoURL: '',
+    } as unknown as User;
+  });
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = initAuth(
-      (user) => {
-        setUser(user);
-        setNeedsAuth(false);
+      (firebaseUser) => {
+        if (firebaseUser) {
+          setUser(firebaseUser);
+          setNeedsAuth(false);
+        }
       },
       () => {
-        setUser(null);
-        setNeedsAuth(true);
+        // Keep guest user so app is always interactive
+        setUser((curr) => {
+          if (curr && curr.uid !== 'guest_local') {
+            return {
+              uid: 'guest_local',
+              displayName: 'Peladeiro',
+              email: '',
+              photoURL: '',
+            } as unknown as User;
+          }
+          return curr;
+        });
+        setNeedsAuth(false);
       }
     );
     return () => unsubscribe();
   }, []);
 
   const clearError = () => setError(null);
+
+  const continueAsGuest = () => {
+    localStorage.setItem('grota_guest_mode', 'true');
+    setUser({
+      uid: 'guest_local',
+      displayName: 'Peladeiro (Modo Local)',
+      email: '',
+      photoURL: '',
+    } as unknown as User);
+    setNeedsAuth(false);
+    setError(null);
+  };
 
   const login = async () => {
     setError(null);
@@ -47,14 +80,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await signInPromise;
 
       if (result) {
+        localStorage.removeItem('grota_guest_mode');
         setUser(result.user);
         setNeedsAuth(false);
       }
     } catch (err: any) {
-      if (err?.code === 'auth/popup-blocked') {
-        setError('O popup de login foi bloqueado pelo navegador. Por favor, clique em "Open in new tab" (ícone no topo direito) para acessar o aplicativo em uma nova aba e fazer login.');
+      if (err?.code === 'auth/unauthorized-domain') {
+        setError('O domínio da Hostinger ainda não foi liberado no Firebase Auth. Você pode usar o aplicativo normalmente clicando em "Entrar no Grota F.C (Modo Local)" abaixo!');
+      } else if (err?.code === 'auth/popup-blocked') {
+        setError('O popup de login foi bloqueado pelo navegador. Por favor, libere popups ou clique em "Entrar no Grota F.C (Modo Local)" para continuar.');
       } else {
-        setError('Erro ao fazer login: ' + err.message + '. Caso o login não abra, clique em "Open in new tab" (ícone no topo direito).');
+        setError('Erro ao fazer login: ' + (err?.message || 'Falha na autenticação') + '. Você pode usar o "Modo Local" para acessar agora.');
       }
       console.error('Login failed:', err);
     } finally {
@@ -63,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    localStorage.removeItem('grota_guest_mode');
     await logoutAuth();
     setUser(null);
     setToken(null);
@@ -70,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, needsAuth, isLoggingIn, error, login, logout, clearError }}>
+    <AuthContext.Provider value={{ user, token, needsAuth, isLoggingIn, error, login, logout, continueAsGuest, clearError }}>
       {children}
     </AuthContext.Provider>
   );

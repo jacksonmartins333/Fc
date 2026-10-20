@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../store/AuthContext';
 import { useAppContext } from '../store/AppContext';
-import { Settings, Shield, RefreshCw, LogOut, AlertTriangle, Users, Lock, Key, ArrowLeft } from 'lucide-react';
+import { 
+  Settings, Shield, RefreshCw, LogOut, AlertTriangle, Users, Lock, Key, 
+  Database, Download, Upload, Check, Copy, ExternalLink, HardDrive, CheckCircle2 
+} from 'lucide-react';
+import { 
+  getSupabaseConfig, saveSupabaseConfig, SUPABASE_SETUP_SQL 
+} from '../lib/supabase';
 
 interface AdminPanelProps {
   setCurrentTab: (tab: string) => void;
@@ -19,12 +25,24 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     numberOfTeams, 
     setNumberOfTeams,
     players,
-    setPaymentStatus
+    setPaymentStatus,
+    exportBackup,
+    restoreBackup,
+    syncSupabaseNow
   } = useAppContext();
 
   const [tempPixKey, setTempPixKey] = useState(pixKey || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
+
+  // Supabase Config State
+  const [supabaseUrl, setSupabaseUrl] = useState(() => getSupabaseConfig().url);
+  const [supabaseKey, setSupabaseKey] = useState(() => getSupabaseConfig().anonKey);
+  const [supabaseStatus, setSupabaseStatus] = useState<string | null>(null);
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [showSql, setShowSql] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +111,66 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     }
   };
 
+  const handleSaveSupabase = async () => {
+    setIsTestingSupabase(true);
+    setSupabaseStatus(null);
+    try {
+      saveSupabaseConfig(supabaseUrl, supabaseKey);
+      if (supabaseUrl && supabaseKey) {
+        const res = await syncSupabaseNow();
+        if (res.success) {
+          setSupabaseStatus('success');
+        } else {
+          setSupabaseStatus('error: ' + (res.error || 'Falha ao conectar'));
+        }
+      } else {
+        setSupabaseStatus('cleared');
+      }
+    } catch (e: any) {
+      setSupabaseStatus('error: ' + (e?.message || 'Falha desconhecida'));
+    } finally {
+      setIsTestingSupabase(false);
+    }
+  };
+
+  const handleDownloadBackup = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(exportBackup());
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `grota_fc_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const parsed = JSON.parse(content);
+        const success = restoreBackup(parsed);
+        if (success) {
+          alert('Backup restaurado com sucesso! Os jogadores e partidas foram atualizados.');
+        } else {
+          alert('Formato de backup inválido.');
+        }
+      } catch (err) {
+        alert('Erro ao processar o arquivo de backup.');
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const copySql = () => {
+    navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 3000);
+  };
+
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
       <div className="flex items-center justify-between mb-6">
@@ -105,30 +183,37 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
             setIsAdmin(false);
             setCurrentTab('dashboard');
           }}
-          className="text-slate-400 hover:text-slate-600 text-sm flex items-center gap-1"
+          className="text-slate-400 hover:text-slate-600 text-sm flex items-center gap-1 cursor-pointer"
         >
           <LogOut size={16} /> Sair do Admin
         </button>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
-          {user.photoURL ? (
-            <img src={user.photoURL} alt="Admin" className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
-          ) : (
-            <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg border-2 border-white shadow-sm">
-              {user.displayName?.[0] || 'A'}
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="Admin" className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg border-2 border-white shadow-sm">
+                ⚽
+              </div>
+            )}
+            <div>
+              <div className="font-bold text-slate-800">{user?.displayName || 'Administrador (Grota F.C)'}</div>
+              <div className="text-xs text-slate-500">{user?.email || 'Acesso Direto (Senha 162222)'}</div>
             </div>
-          )}
-          <div>
-            <div className="font-bold text-slate-800">{user.displayName || 'Administrador'}</div>
-            <div className="text-sm text-slate-500">{user.email}</div>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Modo Ativo
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-6">
+          {/* Configurações de Regra e Pix */}
           <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
             <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
               <Settings size={18} className="text-slate-400" /> Configurações da Pelada
@@ -150,7 +235,7 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
                       setPixKey(tempPixKey);
                       alert('Chave PIX atualizada com sucesso!');
                     }}
-                    className="bg-indigo-600 text-white font-medium px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition"
+                    className="bg-indigo-600 text-white font-medium px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition cursor-pointer"
                   >
                     Salvar
                   </button>
@@ -184,54 +269,155 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
               </div>
             </div>
           </div>
+
+          {/* Backup e Restauração */}
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-2">
+              <HardDrive size={18} className="text-slate-400" /> Backup e Segurança dos Dados
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Seus dados já ficam salvos no navegador. Use estes botões para salvar uma cópia no seu celular/computador ou restaurar em outro aparelho.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleDownloadBackup}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold rounded-xl text-xs hover:bg-emerald-100 transition cursor-pointer"
+              >
+                <Download size={15} /> Baixar Backup
+              </button>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center gap-2 py-2.5 px-3 bg-slate-100 border border-slate-300 text-slate-800 font-semibold rounded-xl text-xs hover:bg-slate-200 transition cursor-pointer"
+              >
+                <Upload size={15} /> Restaurar Arquivo
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">
+          {/* Conexão com Supabase */}
           <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                <Database size={18} className="text-emerald-600" /> Banco de Dados Supabase
+              </h3>
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${supabaseUrl ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                {supabaseUrl ? 'Configurado' : 'Opcional'}
+              </span>
+            </div>
+            
+            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+              Deseja sincronizar tudo em tempo real para múltiplos celulares pelo Supabase? Cole aqui as credenciais do seu projeto gratuito no <strong>supabase.com</strong>.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Project URL do Supabase</label>
+                <input
+                  type="text"
+                  value={supabaseUrl}
+                  onChange={(e) => setSupabaseUrl(e.target.value)}
+                  placeholder="https://exemplo.supabase.co"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Project API Key (Anon / Public)</label>
+                <input
+                  type="password"
+                  value={supabaseKey}
+                  onChange={(e) => setSupabaseKey(e.target.value)}
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono"
+                />
+              </div>
+
+              {supabaseStatus === 'success' && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs flex items-center gap-2">
+                  <CheckCircle2 size={16} /> Conectado e sincronizado com o Supabase com sucesso!
+                </div>
+              )}
+
+              {supabaseStatus && supabaseStatus.startsWith('error') && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-800 text-xs">
+                  {supabaseStatus}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleSaveSupabase}
+                  disabled={isTestingSupabase}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-lg text-xs transition disabled:opacity-50 cursor-pointer shadow-sm"
+                >
+                  {isTestingSupabase ? 'Testando Conexão...' : 'Salvar e Conectar Supabase'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSql(!showSql)}
+                  className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition cursor-pointer"
+                >
+                  {showSql ? 'Fechar SQL' : 'Script SQL'}
+                </button>
+              </div>
+
+              {showSql && (
+                <div className="mt-3 p-3 bg-slate-900 text-slate-100 rounded-lg text-[11px] font-mono space-y-2">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span>Cole no SQL Editor do Supabase:</span>
+                    <button
+                      onClick={copySql}
+                      className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedSql ? <Check size={12} /> : <Copy size={12} />}
+                      {copiedSql ? 'Copiado!' : 'Copiar'}
+                    </button>
+                  </div>
+                  <pre className="overflow-x-auto whitespace-pre-wrap max-h-36 p-1 bg-slate-950 rounded text-slate-300">
+                    {SUPABASE_SETUP_SQL.trim()}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Ações em Lote e Sair */}
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
               <Users size={18} className="text-slate-400" /> Ações em Lote
             </h3>
             
             <div className="space-y-3">
               <button
                 onClick={handleResetPayments}
-                className="w-full flex items-center justify-between p-3 border border-amber-200 bg-amber-50 rounded-lg hover:bg-amber-100 transition text-amber-700 font-medium"
+                className="w-full flex items-center justify-between p-3 border border-amber-200 bg-amber-50 rounded-lg hover:bg-amber-100 transition text-amber-700 font-medium text-xs cursor-pointer"
               >
                 <span className="flex items-center gap-2">
-                  <RefreshCw size={18} />
-                  Virar Mês (Todos Pendentes)
+                  <RefreshCw size={16} />
+                  Virar Mês (Marcar Todos Como Pendentes)
                 </span>
               </button>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
-              <LogOut size={18} className="text-slate-400" /> Sair
-            </h3>
-            
-            <div className="space-y-3">
               <button
                 onClick={() => {
                   setIsAdmin(false);
                   setCurrentTab('dashboard');
                 }}
-                className="w-full flex items-center justify-center gap-2 p-3 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium"
+                className="w-full flex items-center justify-center gap-2 p-2.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition font-medium text-xs cursor-pointer"
               >
-                <LogOut size={18} />
+                <LogOut size={15} />
                 Sair do Painel Admin
-              </button>
-              
-              <button
-                onClick={() => {
-                  if(window.confirm('Deseja realmente desconectar sua conta?')) {
-                    logout();
-                  }
-                }}
-                className="w-full flex items-center justify-center gap-2 p-3 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition font-medium"
-              >
-                <AlertTriangle size={18} />
-                Desconectar Conta (Log Out)
               </button>
             </div>
           </div>
