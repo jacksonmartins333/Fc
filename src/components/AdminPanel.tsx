@@ -1,20 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../store/AuthContext';
 import { useAppContext } from '../store/AppContext';
 import { 
   Settings, Shield, RefreshCw, LogOut, AlertTriangle, Users, Lock, Key, 
-  Database, Download, Upload, Check, Copy, ExternalLink, HardDrive, CheckCircle2 
+  Database, Download, Upload, ExternalLink, HardDrive, CheckCircle2, Cloud, Sparkles 
 } from 'lucide-react';
-import { 
-  getSupabaseConfig, saveSupabaseConfig, SUPABASE_SETUP_SQL 
-} from '../lib/supabase';
 
 interface AdminPanelProps {
   setCurrentTab: (tab: string) => void;
 }
 
 export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
-  const { user, logout } = useAuth();
+  const { user, login, logout, isLoggingIn, error: authError } = useAuth();
   const { 
     isAdmin,
     setIsAdmin,
@@ -27,21 +24,13 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     players,
     setPaymentStatus,
     exportBackup,
-    restoreBackup,
-    syncSupabaseNow
+    restoreBackup
   } = useAppContext();
 
   const [tempPixKey, setTempPixKey] = useState(pixKey || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
-
-  // Supabase Config State
-  const [supabaseUrl, setSupabaseUrl] = useState(() => getSupabaseConfig().url);
-  const [supabaseKey, setSupabaseKey] = useState(() => getSupabaseConfig().anonKey);
-  const [supabaseStatus, setSupabaseStatus] = useState<string | null>(null);
-  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
-  const [showSql, setShowSql] = useState(false);
+  const [showDomainHelp, setShowDomainHelp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUnlock = (e: React.FormEvent) => {
@@ -111,27 +100,6 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     }
   };
 
-  const handleSaveSupabase = async () => {
-    setIsTestingSupabase(true);
-    setSupabaseStatus(null);
-    try {
-      saveSupabaseConfig(supabaseUrl, supabaseKey);
-      if (supabaseUrl && supabaseKey) {
-        const res = await syncSupabaseNow();
-        if (res.success) {
-          setSupabaseStatus('success');
-        } else {
-          setSupabaseStatus('error: ' + (res.error || 'Falha ao conectar'));
-        }
-      } else {
-        setSupabaseStatus('cleared');
-      }
-    } catch (e: any) {
-      setSupabaseStatus('error: ' + (e?.message || 'Falha desconhecida'));
-    } finally {
-      setIsTestingSupabase(false);
-    }
-  };
 
   const handleDownloadBackup = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(exportBackup());
@@ -305,90 +273,97 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
         </div>
 
         <div className="space-y-6">
-          {/* Conexão com Supabase */}
+          {/* Banco de Dados Firebase */}
           <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Database size={18} className="text-emerald-600" /> Banco de Dados Supabase
+                <Database size={18} className="text-amber-500" /> Banco de Dados Firebase
               </h3>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${supabaseUrl ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-                {supabaseUrl ? 'Configurado' : 'Opcional'}
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${user && user.uid !== 'guest_local' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                {user && user.uid !== 'guest_local' ? 'Nuvem Conectada' : 'Modo Local'}
               </span>
             </div>
             
             <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-              Deseja sincronizar tudo em tempo real para múltiplos celulares pelo Supabase? Cole aqui as credenciais do seu projeto gratuito no <strong>supabase.com</strong>.
+              O aplicativo usa o <strong>Firebase Cloud Firestore</strong> para persistência de dados em tempo real e autenticação segura com o Google.
             </p>
 
             <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Project URL do Supabase</label>
-                <input
-                  type="text"
-                  value={supabaseUrl}
-                  onChange={(e) => setSupabaseUrl(e.target.value)}
-                  placeholder="https://exemplo.supabase.co"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Project API Key (Anon / Public)</label>
-                <input
-                  type="password"
-                  value={supabaseKey}
-                  onChange={(e) => setSupabaseKey(e.target.value)}
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono"
-                />
-              </div>
-
-              {supabaseStatus === 'success' && (
-                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs flex items-center gap-2">
-                  <CheckCircle2 size={16} /> Conectado e sincronizado com o Supabase com sucesso!
+              {user && user.uid !== 'guest_local' ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                    <CheckCircle2 size={16} className="text-emerald-600" />
+                    Sincronizado na nuvem com o Firebase!
+                  </div>
+                  <p className="text-[11px] text-emerald-700">
+                    Conta: <strong>{user.email || user.displayName}</strong>
+                  </p>
+                  <p className="text-[11px] text-emerald-600">
+                    Qualquer alteração em jogadores e partidas é salva automaticamente no Cloud Firestore.
+                  </p>
+                  <button
+                    onClick={() => logout()}
+                    className="mt-1 text-xs text-emerald-800 underline font-semibold hover:text-emerald-900 cursor-pointer"
+                  >
+                    Desconectar conta Google
+                  </button>
+                </div>
+              ) : (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center gap-2 text-slate-800 font-semibold text-xs">
+                    <HardDrive size={15} className="text-indigo-600" />
+                    Armazenamento Local no Aparelho
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Seus dados estão salvos com segurança neste navegador. Para sincronizar em tempo real com outros celulares ou organizadores, conecte com o Google:
+                  </p>
+                  <button
+                    onClick={() => login()}
+                    disabled={isLoggingIn}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-xs transition disabled:opacity-50 cursor-pointer shadow-sm"
+                  >
+                    <Cloud size={15} />
+                    {isLoggingIn ? 'Conectando ao Firebase...' : 'Conectar ao Firebase (Google)'}
+                  </button>
+                  {authError && (
+                    <div className="p-2 bg-red-50 border border-red-200 rounded text-red-700 text-[11px] mt-2">
+                      {authError}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {supabaseStatus && supabaseStatus.startsWith('error') && (
-                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-red-800 text-xs">
-                  {supabaseStatus}
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  onClick={handleSaveSupabase}
-                  disabled={isTestingSupabase}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-lg text-xs transition disabled:opacity-50 cursor-pointer shadow-sm"
-                >
-                  {isTestingSupabase ? 'Testando Conexão...' : 'Salvar e Conectar Supabase'}
-                </button>
+              {/* Ajuda para liberar o domínio da Hostinger no Firebase */}
+              <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
                 <button
                   type="button"
-                  onClick={() => setShowSql(!showSql)}
-                  className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition cursor-pointer"
+                  onClick={() => setShowDomainHelp(!showDomainHelp)}
+                  className="w-full flex items-center justify-between text-left font-semibold text-xs text-slate-700 cursor-pointer"
                 >
-                  {showSql ? 'Fechar SQL' : 'Script SQL'}
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles size={14} className="text-amber-500" />
+                    Como autorizar o link da Hostinger no Firebase
+                  </span>
+                  <span className="text-slate-400 text-xs">{showDomainHelp ? '▲' : '▼'}</span>
                 </button>
-              </div>
 
-              {showSql && (
-                <div className="mt-3 p-3 bg-slate-900 text-slate-100 rounded-lg text-[11px] font-mono space-y-2">
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span>Cole no SQL Editor do Supabase:</span>
-                    <button
-                      onClick={copySql}
-                      className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
-                    >
-                      {copiedSql ? <Check size={12} /> : <Copy size={12} />}
-                      {copiedSql ? 'Copiado!' : 'Copiar'}
-                    </button>
+                {showDomainHelp && (
+                  <div className="mt-2.5 pt-2.5 border-t border-slate-200 text-[11px] text-slate-600 space-y-1.5 leading-relaxed">
+                    <p className="font-semibold text-slate-700">
+                      Caso veja o erro <code>auth/unauthorized-domain</code> ao clicar em Entrar com Google:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1">
+                      <li>Acesse o console do Firebase no navegador.</li>
+                      <li>Vá no menu <strong>Authentication</strong> e clique na aba <strong>Settings</strong>.</li>
+                      <li>Role até a seção <strong>Authorized domains (Domínios autorizados)</strong>.</li>
+                      <li>Clique em <strong>Add domain</strong> e adicione <code>hostingersite.com</code> (ou o domínio do seu site).</li>
+                    </ol>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Enquanto isso, você pode continuar usando o aplicativo normalmente no modo local e usar os botões de "Baixar Backup" para segurança!
+                    </p>
                   </div>
-                  <pre className="overflow-x-auto whitespace-pre-wrap max-h-36 p-1 bg-slate-950 rounded text-slate-300">
-                    {SUPABASE_SETUP_SQL.trim()}
-                  </pre>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 

@@ -5,9 +5,6 @@ import {
   subscribeToPlayers, subscribeToMatches, subscribeToSettings, 
   savePlayer, deletePlayer, saveMatch, saveSettings 
 } from '../lib/db';
-import { 
-  saveToSupabase, loadFromSupabase, getSupabaseConfig 
-} from '../lib/supabase';
 
 interface AppState {
   players: Player[];
@@ -34,7 +31,6 @@ interface AppContextType extends AppState {
   setPixKey: (key: string) => void;
   exportBackup: () => string;
   restoreBackup: (jsonData: any) => boolean;
-  syncSupabaseNow: () => Promise<{ success: boolean; error?: string }>;
 }
 
 const defaultState: AppState = {
@@ -84,30 +80,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('pelada_fc_state', JSON.stringify(state));
-    const { isConfigured } = getSupabaseConfig();
-    if (isConfigured) {
-      const timer = setTimeout(() => {
-        saveToSupabase(state);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
   }, [state]);
-
-  useEffect(() => {
-    const { isConfigured } = getSupabaseConfig();
-    if (isConfigured) {
-      loadFromSupabase().then(res => {
-        if (res.success && res.data) {
-          setState(s => ({
-            ...s,
-            ...res.data,
-            players: Array.isArray(res.data.players) && res.data.players.length > 0 ? res.data.players : s.players,
-            matches: Array.isArray(res.data.matches) ? res.data.matches : s.matches,
-          }));
-        }
-      });
-    }
-  }, []);
 
   const isFirebaseUser = Boolean(user && user.uid && user.uid !== 'guest_local');
 
@@ -376,19 +349,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         players: data.players || s.players,
         matches: Array.isArray(data.matches) ? data.matches : s.matches,
       }));
-      const { isConfigured } = getSupabaseConfig();
-      if (isConfigured) {
-        saveToSupabase(data);
+
+      // Se o usuário estiver conectado no Firebase, sincroniza os jogadores restaurados na nuvem
+      if (isFirebaseUser && user && Array.isArray(data.players)) {
+        data.players.forEach((p: Player) => {
+          savePlayer(user.uid, p, false);
+        });
       }
       return true;
     } catch (e) {
       console.error('Failed to restore backup:', e);
       return false;
     }
-  };
-
-  const syncSupabaseNow = async () => {
-    return await saveToSupabase(state);
   };
 
   return (
@@ -418,8 +390,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (isFirebaseUser && user) saveSettings(user.uid, { pixKey: key }, false);
       },
       exportBackup,
-      restoreBackup,
-      syncSupabaseNow
+      restoreBackup
     }}>
       {children}
     </AppContext.Provider>
