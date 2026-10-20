@@ -17,6 +17,8 @@ export interface Player {
   paymentStatus: PaymentStatus;
   isGoalkeeper: boolean;
   isPresent: boolean; // For the current match day
+  isInjuredOrTired?: boolean; // Resting, tired or injured
+  injuryReason?: 'tired' | 'injured' | 'left';
   stats: PlayerStats;
 }
 
@@ -25,6 +27,8 @@ export interface Team {
   name: string;
   players: Player[];
   score: number;
+  color?: string;
+  winsInRow?: number;
 }
 
 export type MatchEvent = 
@@ -39,4 +43,8 @@ export interface Match {
   status: 'not_started' | 'in_progress' | 'finished';
   events: MatchEvent[];
   startTime?: number;
+  matchNumber?: number;
+  winnerTeamId?: string | 'draw';
+  finishedAt?: number;
 }
+

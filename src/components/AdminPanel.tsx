@@ -133,11 +133,6 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const copySql = () => {
-    navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
-    setCopiedSql(true);
-    setTimeout(() => setCopiedSql(false), 3000);
-  };
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
