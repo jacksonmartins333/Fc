@@ -27,7 +27,9 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     players,
     setPaymentStatus,
     exportBackup,
-    restoreBackup
+    restoreBackup,
+    isDbConnected,
+    syncWithDatabase
   } = useAppContext();
 
   const [tempPixKey, setTempPixKey] = useState(pixKey || '');
@@ -38,9 +40,10 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
   const [pinChangeMsg, setPinChangeMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUnlock = (e: React.FormEvent) => {
+  const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (unlockAdmin(password)) {
+    const success = await unlockAdmin(password);
+    if (success) {
       setError(false);
       setPassword('');
     } else {
@@ -49,13 +52,13 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     }
   };
 
-  const handleUpdatePin = (e: React.FormEvent) => {
+  const handleUpdatePin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPin.trim() || newPin.trim().length < 4) {
       setPinChangeMsg('A nova senha deve ter pelo menos 4 caracteres.');
       return;
     }
-    setAdminPin(newPin.trim());
+    await setAdminPin(newPin.trim());
     setNewPin('');
     setPinChangeMsg('Senha do organizador alterada com sucesso!');
     setTimeout(() => setPinChangeMsg(''), 4000);
@@ -338,93 +341,92 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
           <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                <Database size={18} className="text-amber-500" /> Banco de Dados Firebase
+                <Database size={18} className="text-emerald-600" /> Banco de Dados Cloud Firestore
               </h3>
-              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${user && user.uid !== 'guest_local' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                {user && user.uid !== 'guest_local' ? 'Nuvem Conectada' : 'Modo Local'}
+              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${isDbConnected ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isDbConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+                {isDbConnected ? 'Banco Ativo e Conectado' : 'Conectando ao Banco...'}
               </span>
             </div>
             
             <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-              O aplicativo usa o <strong>Firebase Cloud Firestore</strong> para persistência de dados em tempo real e autenticação segura com o Google.
+              Todos os jogadores, presenças e partidas são salvos e sincronizados automaticamente em tempo real no <strong>Google Cloud Firestore</strong>.
             </p>
 
             <div className="space-y-3">
-              {user && user.uid !== 'guest_local' ? (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
-                    <CheckCircle2 size={16} className="text-emerald-600" />
-                    Sincronizado na nuvem com o Firebase!
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
+                    <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                    <span>Sincronização Ativa em Tempo Real</span>
                   </div>
-                  <p className="text-[11px] text-emerald-700">
-                    Conta: <strong>{user.email || user.displayName}</strong>
-                  </p>
-                  <p className="text-[11px] text-emerald-600">
-                    Qualquer alteração em jogadores e partidas é salva automaticamente no Cloud Firestore.
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md">
+                    {players.length} atletas salvos
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-700 leading-relaxed">
+                  Qualquer jogador cadastrado, editado ou excluído fica gravado de forma permanente no banco de dados da nuvem.
+                </p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await syncWithDatabase();
+                    alert('Banco de dados sincronizado com sucesso! Todos os atletas e partidas foram validados.');
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition shadow-xs cursor-pointer"
+                >
+                  <RefreshCw size={14} /> Sincronizar Banco Agora
+                </button>
+              </div>
+
+              {user && user.uid !== 'guest_local' ? (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                  <p className="text-[11px] text-slate-700">
+                    Organizador Conectado: <strong>{user.email || user.displayName}</strong>
                   </p>
                   <button
                     onClick={() => logout()}
-                    className="mt-1 text-xs text-emerald-800 underline font-semibold hover:text-emerald-900 cursor-pointer"
+                    className="text-xs text-slate-500 underline font-semibold hover:text-slate-700 cursor-pointer"
                   >
                     Desconectar conta Google
                   </button>
                 </div>
               ) : (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <div className="flex items-center gap-2 text-slate-800 font-semibold text-xs">
-                    <HardDrive size={15} className="text-indigo-600" />
-                    Armazenamento Local no Aparelho
-                  </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Seus dados estão salvos com segurança neste navegador. Para sincronizar em tempo real com outros celulares ou organizadores, conecte com o Google:
-                  </p>
+                <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
                   <button
-                    onClick={() => login()}
-                    disabled={isLoggingIn}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-xs transition disabled:opacity-50 cursor-pointer shadow-sm"
+                    type="button"
+                    onClick={() => setShowDomainHelp(!showDomainHelp)}
+                    className="w-full flex items-center justify-between text-left font-semibold text-xs text-slate-700 cursor-pointer"
                   >
-                    <Cloud size={15} />
-                    {isLoggingIn ? 'Conectando ao Firebase...' : 'Conectar ao Firebase (Google)'}
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-indigo-600" />
+                      Login com Google do Organizador (Opcional)
+                    </span>
+                    <span className="text-slate-400 text-xs">{showDomainHelp ? '▲' : '▼'}</span>
                   </button>
-                  {authError && (
-                    <div className="p-2 bg-red-50 border border-red-200 rounded text-red-700 text-[11px] mt-2">
-                      {authError}
+
+                  {showDomainHelp && (
+                    <div className="mt-2.5 pt-2.5 border-t border-slate-200 text-[11px] text-slate-600 space-y-2 leading-relaxed">
+                      <p>
+                        O banco de dados já está salvando tudo automaticamente. Caso queira vincular sua conta do Google de organizador:
+                      </p>
+                      <button
+                        onClick={() => login()}
+                        disabled={isLoggingIn}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition disabled:opacity-50 cursor-pointer"
+                      >
+                        <Cloud size={14} />
+                        {isLoggingIn ? 'Conectando...' : 'Entrar com Conta Google'}
+                      </button>
+                      {authError && (
+                        <div className="p-2 bg-red-50 border border-red-200 rounded text-red-700 text-[11px]">
+                          {authError}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               )}
-
-              {/* Ajuda para liberar o domínio da Hostinger no Firebase */}
-              <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
-                <button
-                  type="button"
-                  onClick={() => setShowDomainHelp(!showDomainHelp)}
-                  className="w-full flex items-center justify-between text-left font-semibold text-xs text-slate-700 cursor-pointer"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles size={14} className="text-amber-500" />
-                    Como autorizar o link da Hostinger no Firebase
-                  </span>
-                  <span className="text-slate-400 text-xs">{showDomainHelp ? '▲' : '▼'}</span>
-                </button>
-
-                {showDomainHelp && (
-                  <div className="mt-2.5 pt-2.5 border-t border-slate-200 text-[11px] text-slate-600 space-y-1.5 leading-relaxed">
-                    <p className="font-semibold text-slate-700">
-                      Caso veja o erro <code>auth/unauthorized-domain</code> ao clicar em Entrar com Google:
-                    </p>
-                    <ol className="list-decimal list-inside space-y-1 text-slate-600 pl-1">
-                      <li>Acesse o console do Firebase no navegador.</li>
-                      <li>Vá no menu <strong>Authentication</strong> e clique na aba <strong>Settings</strong>.</li>
-                      <li>Role até a seção <strong>Authorized domains (Domínios autorizados)</strong>.</li>
-                      <li>Clique em <strong>Add domain</strong> e adicione <code>hostingersite.com</code> (ou o domínio do seu site).</li>
-                    </ol>
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Enquanto isso, você pode continuar usando o aplicativo normalmente no modo local e usar os botões de "Baixar Backup" para segurança!
-                    </p>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 

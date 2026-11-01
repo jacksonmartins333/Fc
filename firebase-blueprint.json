@@ -2,15 +2,17 @@
   "entities": {
     "Player": {
       "title": "Player",
-      "description": "Represents a player in the pelada.",
+      "description": "Represents a soccer player in the pelada.",
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
         "type": { "type": "string", "enum": ["mensalista", "avulso"] },
         "rating": { "type": "number" },
         "paymentStatus": { "type": "string", "enum": ["pago", "pendente", "atrasado"] },
         "isGoalkeeper": { "type": "boolean" },
         "isPresent": { "type": "boolean" },
+        "isInjuredOrTired": { "type": "boolean" },
+        "injuryReason": { "type": "string", "enum": ["tired", "injured", "left"] },
         "stats": {
           "type": "object",
           "properties": {
@@ -25,7 +27,7 @@
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["name", "type", "rating", "paymentStatus", "isGoalkeeper", "isPresent", "stats", "ownerId", "createdAt", "updatedAt"]
+      "required": ["name", "type", "rating", "paymentStatus", "isGoalkeeper", "isPresent", "stats"]
     },
     "Match": {
       "title": "Match",
@@ -37,38 +39,44 @@
         "status": { "type": "string", "enum": ["not_started", "in_progress", "finished"] },
         "events": { "type": "array" },
         "startTime": { "type": "number" },
+        "matchNumber": { "type": "number" },
+        "winnerTeamId": { "type": "string" },
+        "finishedAt": { "type": "number" },
         "ownerId": { "type": "string" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["teamA", "teamB", "status", "events", "ownerId", "createdAt", "updatedAt"]
+      "required": ["teamA", "teamB", "status", "events"]
     },
     "Settings": {
       "title": "Settings",
-      "description": "App settings for the user",
+      "description": "App settings for the pelada",
       "type": "object",
       "properties": {
         "pixKey": { "type": "string" },
         "maxPlayersPerTeam": { "type": "number" },
         "numberOfTeams": { "type": "number" },
+        "matchDurationMinutes": { "type": "number" },
+        "currentTeams": { "type": "array" },
+        "teamQueue": { "type": "array" },
+        "benchPlayers": { "type": "array" },
         "ownerId": { "type": "string" },
         "updatedAt": { "type": "string" }
-      },
-      "required": ["ownerId", "updatedAt"]
+      }
     }
   },
   "firestore": {
-    "users/{userId}/players/{playerId}": {
+    "shared/data/players/{playerId}": {
       "schema": { "$ref": "#/entities/Player" },
-      "description": "Players managed by the user"
+      "description": "Players in the shared pelada roster"
     },
-    "users/{userId}/matches/{matchId}": {
+    "shared/data/matches/{matchId}": {
       "schema": { "$ref": "#/entities/Match" },
-      "description": "Matches managed by the user"
+      "description": "Matches in the shared pelada"
     },
-    "users/{userId}/settings/app": {
+    "shared/data/settings/app": {
       "schema": { "$ref": "#/entities/Settings" },
-      "description": "Settings for the user's pelada"
+      "description": "Global settings and match configuration for the pelada"
     }
   }
 }

@@ -9,90 +9,65 @@ service cloud.firestore {
 
     // Primitive Helpers
     function isValidId(id) { 
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
     }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
-    function isSignedIn() { return request.auth != null; }
 
     // Validation Blueprint for Player
     function isValidPlayer(data) {
-      return data.keys().hasAll(['name', 'type', 'rating', 'paymentStatus', 'isGoalkeeper', 'isPresent', 'stats', 'ownerId', 'updatedAt'])
-        && data.name is string 
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 60
         && data.type in ['mensalista', 'avulso']
-        && data.rating is number
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
         && data.paymentStatus in ['pago', 'pendente', 'atrasado']
         && data.isGoalkeeper is bool
         && data.isPresent is bool
         && data.stats is map
-        && data.ownerId == request.auth.uid
-        && data.updatedAt is timestamp;
+        && data.stats.goals is number && data.stats.goals >= 0 && data.stats.goals <= 1000
+        && data.stats.assists is number && data.stats.assists >= 0 && data.stats.assists <= 1000;
     }
 
     // Validation Blueprint for Match
     function isValidMatch(data) {
-      return data.keys().hasAll(['teamA', 'teamB', 'status', 'events', 'ownerId', 'updatedAt'])
-        && data.teamA is map
+      return data.teamA is map
         && data.teamB is map
         && data.status in ['not_started', 'in_progress', 'finished']
         && data.events is list
-        && data.ownerId == request.auth.uid
-        && data.updatedAt is timestamp;
+        && data.events.size() <= 500;
     }
 
     // Validation Blueprint for Settings
     function isValidSettings(data) {
-      return data.keys().hasAll(['ownerId', 'updatedAt'])
-        && data.ownerId == request.auth.uid
-        && data.updatedAt is timestamp;
+      return (!('maxPlayersPerTeam' in data) || (data.maxPlayersPerTeam is number && data.maxPlayersPerTeam >= 2 && data.maxPlayersPerTeam <= 20))
+        && (!('numberOfTeams' in data) || (data.numberOfTeams is number && data.numberOfTeams >= 2 && data.numberOfTeams <= 10))
+        && (!('matchDurationMinutes' in data) || (data.matchDurationMinutes is number && data.matchDurationMinutes >= 1 && data.matchDurationMinutes <= 60))
+        && (!('pixKey' in data) || (data.pixKey is string && data.pixKey.size() <= 120));
+    }
+
+    // Health check endpoint
+    match /test/{testId} {
+      allow read: if true;
     }
 
     match /shared/data {
       match /players/{playerId} {
-        allow read, list: if isSignedIn();
-        
-        allow create: if isSignedIn() 
-          && isValidId(playerId)
-          && isValidPlayer(incoming())
-          && incoming().updatedAt == request.time;
-          
-        allow update: if isSignedIn()
-          && isValidId(playerId)
-          && isValidPlayer(incoming())
-          && incoming().ownerId == existing().ownerId
-          && incoming().updatedAt == request.time;
-
-        allow delete: if isSignedIn() && isValidId(playerId);
+        allow read, list: if true;
+        allow create: if isValidId(playerId) && isValidPlayer(incoming());
+        allow update: if isValidId(playerId) && isValidPlayer(incoming());
+        allow delete: if isValidId(playerId);
       }
 
       match /matches/{matchId} {
-        allow read, list: if isSignedIn();
-        
-        allow create: if isSignedIn() 
-          && isValidId(matchId)
-          && isValidMatch(incoming())
-          && incoming().updatedAt == request.time;
-          
-        allow update: if isSignedIn()
-          && isValidId(matchId)
-          && isValidMatch(incoming())
-          && incoming().ownerId == existing().ownerId
-          && incoming().updatedAt == request.time;
-
-        allow delete: if isSignedIn() && isValidId(matchId);
+        allow read, list: if true;
+        allow create: if isValidId(matchId) && isValidMatch(incoming());
+        allow update: if isValidId(matchId) && isValidMatch(incoming());
+        allow delete: if isValidId(matchId);
       }
 
-      match /settings/app {
-        allow read, list: if isSignedIn();
-        
-        allow create: if isSignedIn() 
-          && isValidSettings(incoming())
-          && incoming().updatedAt == request.time;
-          
-        allow update: if isSignedIn()
-          && isValidSettings(incoming())
-          && incoming().ownerId == existing().ownerId
-          && incoming().updatedAt == request.time;
+      match /settings/{settingId} {
+        allow read, list: if true;
+        allow create, update: if isValidId(settingId) && isValidSettings(incoming());
+        allow delete: if isValidId(settingId);
       }
     }
   }

@@ -1,0 +1,6 @@
+{
+  "summary":  "Plano de implementação detalhado para auditoria de segurança, correção de vulnerabilidades (hashing de senha, proteção contra força bruta, sanitização de inputs, validação de backup e endurecimento de regras no Firestore) e responsividade mobile de alta performance (safe-areas iOS/Android, placar ao vivo touch-friendly e adaptação de tabelas).",
+  "updatedAt":  "2026-11-01T20:53:12.861138037Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

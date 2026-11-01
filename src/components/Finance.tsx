@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../store/AppContext';
-import { CheckCircle2, AlertCircle, XCircle, QrCode, X, Download } from 'lucide-react';
+import { CheckCircle2, AlertCircle, XCircle, QrCode, X, Download, Lock } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { generatePixPayload } from '../lib/pix';
+import { AdminPinModal } from './AdminPinModal';
 
 export function Finance() {
   const { players, setPaymentStatus, pixKey, isAdmin } = useAppContext();
   const [selectedPlayer, setSelectedPlayer] = useState<typeof players[0] | null>(null);
+  const [showPinModal, setShowPinModal] = useState(false);
 
   const stats = useMemo(() => {
     return {
@@ -109,13 +111,19 @@ export function Finance() {
                     return (
                       <button
                         key={status}
-                        onClick={() => isAdmin && setPaymentStatus(player.id, status)}
-                        disabled={!isAdmin}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                        onClick={() => {
+                          if (isAdmin) {
+                            setPaymentStatus(player.id, status);
+                          } else {
+                            setShowPinModal(true);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                           isActive 
-                            ? `${config.bg} ${config.color} ring-1 ring-inset ring-${config.color.split('-')[1]}-200` 
-                            : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                        } ${!isAdmin ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            ? `${config.bg} ${config.color} ring-1 ring-inset ring-emerald-200` 
+                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                        title={!isAdmin ? 'Clique para desbloquear modo organizador' : undefined}
                       >
                         {config.label}
                       </button>
@@ -183,6 +191,12 @@ export function Finance() {
           </div>
         </div>
       )}
+
+      {/* Modal de Senha do Organizador */}
+      <AdminPinModal
+        isOpen={showPinModal}
+        onClose={() => setShowPinModal(false)}
+      />
     </div>
   );
 }

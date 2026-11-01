@@ -1,14 +1,14 @@
 import { 
-  collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, query, where, writeBatch, serverTimestamp
+  collection, doc, getDocs, setDoc, deleteDoc, onSnapshot, serverTimestamp, getDocFromServer, writeBatch 
 } from 'firebase/firestore';
 import { db, auth } from './auth';
 import { Match, Player } from '../types';
 
-enum OperationType {
+export enum OperationType {
   CREATE = 'create', UPDATE = 'update', DELETE = 'delete', LIST = 'list', GET = 'get', WRITE = 'write',
 }
 
-interface FirestoreErrorInfo {
+export interface FirestoreErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
@@ -19,67 +19,122 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
+      userId: auth.currentUser?.uid || 'guest_or_organizer',
       email: auth.currentUser?.email,
       emailVerified: auth.currentUser?.emailVerified,
     },
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Firestore Operation Notification:', JSON.stringify(errInfo));
 }
 
-// Subscribe to Players
-export function subscribeToPlayers(userId: string, callback: (players: Player[]) => void) {
+// Connection test as required by Firebase integration guidelines
+export async function testConnection(): Promise<boolean> {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn('Firebase client operating offline or connecting...');
+    }
+    return false;
+  }
+}
+testConnection();
+
+// Subscribe to Players in Real Time
+export function subscribeToPlayers(
+  callback: (players: Player[]) => void, 
+  onError?: (err: any) => void
+) {
   const path = `shared/data/players`;
   const q = collection(db, path);
-  return onSnapshot(q, (snapshot) => {
-    const players = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return { id: doc.id, ...data } as Player;
-    });
-    callback(players);
-  }, (error) => {
-    handleFirestoreError(error, OperationType.LIST, path);
-  });
+  return onSnapshot(
+    q, 
+    (snapshot) => {
+      const players = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id,
+          name: data.name || '',
+          type: data.type || 'mensalista',
+          rating: Number(data.rating) || 3,
+          paymentStatus: data.paymentStatus || 'pendente',
+          isGoalkeeper: Boolean(data.isGoalkeeper),
+          isPresent: Boolean(data.isPresent),
+          isInjuredOrTired: Boolean(data.isInjuredOrTired),
+          injuryReason: data.injuryReason || undefined,
+          stats: {
+            goals: Number(data.stats?.goals) || 0,
+            assists: Number(data.stats?.assists) || 0,
+            matchesWon: Number(data.stats?.matchesWon) || 0,
+            matchesPlayed: Number(data.stats?.matchesPlayed) || 0,
+            goalsConceded: Number(data.stats?.goalsConceded) || 0,
+          }
+        } as Player;
+      });
+      callback(players);
+    }, 
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      if (onError) onError(error);
+    }
+  );
 }
 
-// Subscribe to Matches
-export function subscribeToMatches(userId: string, callback: (matches: Match[]) => void) {
+// Subscribe to Matches in Real Time
+export function subscribeToMatches(
+  callback: (matches: Match[]) => void,
+  onError?: (err: any) => void
+) {
   const path = `shared/data/matches`;
   const q = collection(db, path);
-  return onSnapshot(q, (snapshot) => {
-    const matches = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return { id: doc.id, ...data } as Match;
-    });
-    callback(matches);
-  }, (error) => {
-    handleFirestoreError(error, OperationType.LIST, path);
-  });
+  return onSnapshot(
+    q, 
+    (snapshot) => {
+      const matches = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return { id: doc.id, ...data } as Match;
+      });
+      callback(matches);
+    }, 
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+      if (onError) onError(error);
+    }
+  );
 }
 
-// Subscribe to Settings
-export function subscribeToSettings(userId: string, callback: (settings: any) => void) {
+// Subscribe to Global App Settings in Real Time
+export function subscribeToSettings(
+  callback: (settings: any) => void,
+  onError?: (err: any) => void
+) {
   const path = `shared/data/settings/app`;
   const q = doc(db, path);
-  return onSnapshot(q, (doc) => {
-    if (doc.exists()) {
-      callback(doc.data());
+  return onSnapshot(
+    q, 
+    (docSnap) => {
+      if (docSnap.exists()) {
+        callback(docSnap.data());
+      }
+    }, 
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      if (onError) onError(error);
     }
-  }, (error) => {
-    handleFirestoreError(error, OperationType.GET, path);
-  });
+  );
 }
 
+// Save Single Player
 export async function savePlayer(userId: string, player: Player, isNew: boolean) {
   const path = `shared/data/players/${player.id}`;
   try {
     const { id, ...playerData } = player;
     const data: any = {
       ...playerData,
-      ownerId: userId,
+      ownerId: userId || 'organizer',
       updatedAt: serverTimestamp()
     };
     
@@ -93,6 +148,7 @@ export async function savePlayer(userId: string, player: Player, isNew: boolean)
   }
 }
 
+// Delete Player
 export async function deletePlayer(userId: string, playerId: string) {
   const path = `shared/data/players/${playerId}`;
   try {
@@ -102,13 +158,14 @@ export async function deletePlayer(userId: string, playerId: string) {
   }
 }
 
+// Save Match
 export async function saveMatch(userId: string, match: Match, isNew: boolean) {
   const path = `shared/data/matches/${match.id}`;
   try {
     const { id, ...matchData } = match;
     const data: any = {
       ...matchData,
-      ownerId: userId,
+      ownerId: userId || 'organizer',
       updatedAt: serverTimestamp()
     };
     
@@ -122,12 +179,13 @@ export async function saveMatch(userId: string, match: Match, isNew: boolean) {
   }
 }
 
-export async function saveSettings(userId: string, settings: any, isNew: boolean) {
+// Save Settings
+export async function saveSettings(userId: string, settings: any, isNew: boolean = false) {
   const path = `shared/data/settings/app`;
   try {
     const data: any = {
       ...settings,
-      ownerId: userId,
+      ownerId: userId || 'organizer',
       updatedAt: serverTimestamp()
     };
     

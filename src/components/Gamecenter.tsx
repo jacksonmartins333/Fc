@@ -247,16 +247,16 @@ export function Gamecenter() {
                   {activeMatch.teamA.score}
                 </div>
 
-                <div className="flex gap-2 mt-5">
+                <div className="flex gap-2.5 mt-5 w-full justify-center">
                   <button 
                     onClick={() => handleEventSelect(activeMatch.id, activeMatch.teamA.id, 'goal')} 
-                    className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-4 py-2 rounded-xl text-sm transition flex items-center gap-1 shadow-2xs"
+                    className="flex-1 max-w-[120px] bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer min-h-[46px]"
                   >
                     + Gol
                   </button>
                   <button 
                     onClick={() => handleEventSelect(activeMatch.id, activeMatch.teamA.id, 'assist')} 
-                    className="bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold px-4 py-2 rounded-xl text-sm transition flex items-center gap-1 shadow-2xs"
+                    className="flex-1 max-w-[120px] bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-extrabold px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/20 cursor-pointer min-h-[46px]"
                   >
                     + Assist.
                   </button>
@@ -276,16 +276,16 @@ export function Gamecenter() {
                   {activeMatch.teamB.score}
                 </div>
 
-                <div className="flex gap-2 mt-5">
+                <div className="flex gap-2.5 mt-5 w-full justify-center">
                   <button 
                     onClick={() => handleEventSelect(activeMatch.id, activeMatch.teamB.id, 'goal')} 
-                    className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold px-4 py-2 rounded-xl text-sm transition flex items-center gap-1 shadow-2xs"
+                    className="flex-1 max-w-[120px] bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer min-h-[46px]"
                   >
                     + Gol
                   </button>
                   <button 
                     onClick={() => handleEventSelect(activeMatch.id, activeMatch.teamB.id, 'assist')} 
-                    className="bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold px-4 py-2 rounded-xl text-sm transition flex items-center gap-1 shadow-2xs"
+                    className="flex-1 max-w-[120px] bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-extrabold px-4 py-3 rounded-xl text-sm transition flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/20 cursor-pointer min-h-[46px]"
                   >
                     + Assist.
                   </button>

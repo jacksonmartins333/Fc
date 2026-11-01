@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Player, Match, Team } from '../types';
 import { useAuth } from './AuthContext';
 import { 
   subscribeToPlayers, subscribeToMatches, subscribeToSettings, 
-  savePlayer, deletePlayer, saveMatch, saveSettings 
+  savePlayer, deletePlayer, saveMatch, saveSettings, testConnection 
 } from '../lib/db';
+import { hashAdminPin, sanitizeText, sanitizePixKey, clampNumber, safeValidateBackup } from '../lib/security';
 
 interface AppState {
   players: Player[];
@@ -21,7 +22,10 @@ interface AppState {
 interface AppContextType extends AppState {
   isAdmin: boolean;
   setIsAdmin: (val: boolean) => void;
-  unlockAdmin: (pass: string) => boolean;
+  unlockAdmin: (pass: string) => Promise<boolean> | boolean;
+  isDbConnected: boolean;
+  isLoadedFromDb: boolean;
+  syncWithDatabase: () => Promise<void>;
   addPlayer: (player: Omit<Player, 'id' | 'stats' | 'isPresent'>) => void;
   updatePlayer: (id: string, player: Partial<Player>) => void;
   deletePlayer: (id: string) => void;
@@ -51,10 +55,23 @@ interface AppContextType extends AppState {
   setMatchDurationMinutes: (mins: number) => void;
   setPixKey: (key: string) => void;
   adminPin: string;
-  setAdminPin: (pin: string) => void;
+  setAdminPin: (pin: string) => Promise<void>;
   exportBackup: () => string;
   restoreBackup: (jsonData: any) => boolean;
 }
+
+const initialDefaultPlayers: Player[] = [
+  { id: 'p1', name: 'João Silva', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 5, assists: 3, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p2', name: 'Carlos Henrique', type: 'mensalista', rating: 3, paymentStatus: 'pendente', isGoalkeeper: false, isPresent: true, stats: { goals: 2, assists: 1, matchesWon: 1, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p3', name: 'Marcos Vinícius', type: 'mensalista', rating: 5, paymentStatus: 'atrasado', isGoalkeeper: false, isPresent: true, stats: { goals: 7, assists: 4, matchesWon: 3, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p4', name: 'Lucas Goleiro', type: 'avulso', rating: 4, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 0, matchesWon: 2, matchesPlayed: 3, goalsConceded: 4 } },
+  { id: 'p5', name: 'Pedro Santos', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 1, assists: 2, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p6', name: 'Gabriel Muralha', type: 'mensalista', rating: 5, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 1, matchesWon: 3, matchesPlayed: 3, goalsConceded: 3 } },
+  { id: 'p7', name: 'Matheus Costa', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 4, assists: 3, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p8', name: 'Rafael Souza', type: 'avulso', rating: 3, paymentStatus: 'pendente', isGoalkeeper: false, isPresent: true, stats: { goals: 2, assists: 0, matchesWon: 1, matchesPlayed: 2, goalsConceded: 0 } },
+  { id: 'p9', name: 'Bruno Lima', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 3, assists: 2, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p10', name: 'Felipe Rocha', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 1, assists: 1, matchesWon: 1, matchesPlayed: 2, goalsConceded: 0 } },
+];
 
 const defaultState: AppState = {
   players: [],
@@ -72,32 +89,32 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const currentUserId = user?.uid || 'grota_organizer';
+
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem('pelada_fc_state');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return { ...defaultState, ...parsed };
+        if (parsed && Array.isArray(parsed.players) && parsed.players.length > 0) {
+          return { ...defaultState, ...parsed };
+        }
       } catch (e) {
         console.error('Failed to parse state from localStorage');
       }
     }
     return {
       ...defaultState,
-      players: [
-        { id: '1', name: 'João', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: false, stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 } },
-        { id: '2', name: 'Carlos', type: 'mensalista', rating: 3, paymentStatus: 'pendente', isGoalkeeper: false, isPresent: false, stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 } },
-        { id: '3', name: 'Marcos', type: 'mensalista', rating: 5, paymentStatus: 'atrasado', isGoalkeeper: false, isPresent: false, stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 } },
-        { id: '4', name: 'Lucas', type: 'avulso', rating: 2, paymentStatus: 'pago', isGoalkeeper: true, isPresent: false, stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 } },
-        { id: '5', name: 'Pedro', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: false, stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 } },
-      ]
+      players: initialDefaultPlayers
     };
   });
 
   const [isAdmin, setIsAdminState] = useState(() => sessionStorage.getItem('admin_unlocked') === 'true');
-  const [adminPin, setAdminPinState] = useState<string>(() => {
-    return localStorage.getItem('pelada_admin_pin') || '162222';
+  const [adminPinHash, setAdminPinHashState] = useState<string>(() => {
+    return localStorage.getItem('pelada_admin_pin_hash') || '';
   });
+  const [isDbConnected, setIsDbConnected] = useState<boolean>(true);
+  const [isLoadedFromDb, setIsLoadedFromDb] = useState<boolean>(false);
 
   const setIsAdmin = (val: boolean) => {
     setIsAdminState(val);
@@ -108,100 +125,203 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const setAdminPin = (newPin: string) => {
+  const setAdminPin = async (newPin: string) => {
     const trimmed = newPin.trim();
     if (trimmed) {
-      setAdminPinState(trimmed);
-      localStorage.setItem('pelada_admin_pin', trimmed);
+      const hashed = await hashAdminPin(trimmed);
+      setAdminPinHashState(hashed);
+      localStorage.setItem('pelada_admin_pin_hash', hashed);
+      localStorage.removeItem('pelada_admin_pin'); // Purge legacy plaintext PIN
     }
   };
 
-  const unlockAdmin = (pass: string): boolean => {
-    if (pass.trim() === adminPin) {
+  const unlockAdmin = async (pass: string): Promise<boolean> => {
+    const trimmed = pass.trim();
+    if (!trimmed) return false;
+
+    const inputHash = await hashAdminPin(trimmed);
+
+    // If hashed PIN is already set
+    if (adminPinHash) {
+      if (inputHash === adminPinHash) {
+        setIsAdmin(true);
+        return true;
+      }
+      return false;
+    }
+
+    // Default organizer PIN check
+    const defaultHash = await hashAdminPin('162222');
+    const legacyRaw = localStorage.getItem('pelada_admin_pin');
+    
+    if (inputHash === defaultHash || (legacyRaw && trimmed === legacyRaw)) {
+      setAdminPinHashState(inputHash);
+      localStorage.setItem('pelada_admin_pin_hash', inputHash);
+      localStorage.removeItem('pelada_admin_pin');
       setIsAdmin(true);
       return true;
     }
+
     return false;
   };
 
+  // Keep local storage as reliable fast-cache
   useEffect(() => {
     localStorage.setItem('pelada_fc_state', JSON.stringify(state));
   }, [state]);
 
-  const isFirebaseUser = Boolean(user && user.uid && user.uid !== 'guest_local');
-
+  // Real-time synchronization with Cloud Firestore
   useEffect(() => {
-    if (!isFirebaseUser || !user) return;
-    
-    const unsubPlayers = subscribeToPlayers(user.uid, (firestorePlayers) => {
-      setState(s => {
-        if (firestorePlayers.length === 0 && s.players.length > 0) {
-          s.players.forEach(p => {
-            savePlayer(user.uid, p, true);
-          });
-          return s;
-        }
-        return { ...s, players: firestorePlayers };
-      });
-    });
-    
-    const unsubMatches = subscribeToMatches(user.uid, (firestoreMatches) => {
-      setState(s => {
-        if (firestoreMatches.length === 0 && s.matches.length > 0) {
-          s.matches.forEach(m => {
-            saveMatch(user.uid, m, true);
-          });
-          return s;
-        }
-        return { ...s, matches: firestoreMatches };
-      });
+    testConnection().then((online) => {
+      setIsDbConnected(online);
     });
 
-    const unsubSettings = subscribeToSettings(user.uid, (settings) => {
-      setState(s => ({
-        ...s,
-        pixKey: settings?.pixKey ?? s.pixKey,
-        maxPlayersPerTeam: settings?.maxPlayersPerTeam ?? s.maxPlayersPerTeam,
-        numberOfTeams: settings?.numberOfTeams ?? s.numberOfTeams,
-      }));
-    });
+    // 1. Subscribe to Players
+    const unsubPlayers = subscribeToPlayers(
+      (firestorePlayers) => {
+        setIsDbConnected(true);
+        setIsLoadedFromDb(true);
+
+        if (firestorePlayers.length > 0) {
+          // Cloud Firestore has player documents - use them as master source
+          setState(s => ({
+            ...s,
+            players: firestorePlayers
+          }));
+        } else {
+          // Firestore collection is currently empty
+          // Seed the current players from state or default initial players into Firestore
+          setState(s => {
+            const playersToSeed = s.players.length > 0 ? s.players : initialDefaultPlayers;
+            playersToSeed.forEach(p => {
+              savePlayer(currentUserId, p, true);
+            });
+            return {
+              ...s,
+              players: playersToSeed
+            };
+          });
+        }
+      },
+      (error) => {
+        console.warn('Firestore player sync note:', error);
+        setIsDbConnected(false);
+      }
+    );
+
+    // 2. Subscribe to Matches
+    const unsubMatches = subscribeToMatches(
+      (firestoreMatches) => {
+        if (firestoreMatches.length > 0) {
+          setState(s => ({ ...s, matches: firestoreMatches }));
+        }
+      },
+      (error) => {
+        console.warn('Firestore match sync note:', error);
+      }
+    );
+
+    // 3. Subscribe to Settings
+    const unsubSettings = subscribeToSettings(
+      (settings) => {
+        if (settings) {
+          setState(s => ({
+            ...s,
+            pixKey: settings.pixKey ?? s.pixKey,
+            maxPlayersPerTeam: settings.maxPlayersPerTeam ?? s.maxPlayersPerTeam,
+            numberOfTeams: settings.numberOfTeams ?? s.numberOfTeams,
+            matchDurationMinutes: settings.matchDurationMinutes ?? s.matchDurationMinutes,
+            currentTeams: Array.isArray(settings.currentTeams) && settings.currentTeams.length > 0 
+              ? settings.currentTeams 
+              : s.currentTeams,
+            teamQueue: Array.isArray(settings.teamQueue) ? settings.teamQueue : s.teamQueue,
+            benchPlayers: Array.isArray(settings.benchPlayers) ? settings.benchPlayers : s.benchPlayers,
+          }));
+        }
+      },
+      (error) => {
+        console.warn('Firestore settings sync note:', error);
+      }
+    );
 
     return () => {
       unsubPlayers();
       unsubMatches();
       unsubSettings();
     };
-  }, [user, isFirebaseUser]);
+  }, [currentUserId]);
 
+  // Force re-sync with Cloud Firestore
+  const syncWithDatabase = useCallback(async () => {
+    const isOnline = await testConnection();
+    setIsDbConnected(isOnline);
+    // Push current players to Firestore to guarantee persistence
+    state.players.forEach(p => {
+      savePlayer(currentUserId, p, false);
+    });
+    if (state.matches.length > 0) {
+      state.matches.forEach(m => {
+        saveMatch(currentUserId, m, false);
+      });
+    }
+    saveSettings(currentUserId, {
+      pixKey: state.pixKey,
+      maxPlayersPerTeam: state.maxPlayersPerTeam,
+      numberOfTeams: state.numberOfTeams,
+      matchDurationMinutes: state.matchDurationMinutes,
+      currentTeams: state.currentTeams,
+      teamQueue: state.teamQueue,
+      benchPlayers: state.benchPlayers,
+    }, false);
+  }, [state, currentUserId]);
+
+  // Add player with sanitization and validation
   const addPlayer = (playerData: Omit<Player, 'id' | 'stats' | 'isPresent'>) => {
+    const cleanId = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+    const sanitizedName = sanitizeText(playerData.name, 60);
+    const cleanRating = clampNumber(playerData.rating, 1, 5, 3);
     const newPlayer: Player = {
       ...playerData,
-      id: Math.random().toString(36).substr(2, 9),
+      name: sanitizedName || 'Jogador',
+      rating: cleanRating,
+      id: cleanId,
       isPresent: false,
       stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 },
     };
     setState(s => ({ ...s, players: [...s.players, newPlayer] }));
-    if (isFirebaseUser && user) savePlayer(user.uid, newPlayer, true);
+    savePlayer(currentUserId, newPlayer, true);
   };
 
+  // Update player with sanitized inputs
   const updatePlayer = (id: string, updates: Partial<Player>) => {
     const playerIndex = state.players.findIndex(p => p.id === id);
     if (playerIndex === -1) return;
-    const updatedPlayer = { ...state.players[playerIndex], ...updates };
+
+    const safeUpdates: Partial<Player> = { ...updates };
+    if (typeof safeUpdates.name === 'string') {
+      safeUpdates.name = sanitizeText(safeUpdates.name, 60);
+    }
+    if (safeUpdates.rating !== undefined) {
+      safeUpdates.rating = clampNumber(safeUpdates.rating, 1, 5, 3);
+    }
+    
+    const updatedPlayer = { ...state.players[playerIndex], ...safeUpdates };
     
     setState(s => ({
       ...s,
       players: s.players.map(p => p.id === id ? updatedPlayer : p)
     }));
     
-    if (isFirebaseUser && user) savePlayer(user.uid, updatedPlayer, false);
+    savePlayer(currentUserId, updatedPlayer, false);
   };
 
+  // Delete player permanently from database
   const deletePlayerAction = (id: string) => {
     setState(s => ({ ...s, players: s.players.filter(p => p.id !== id) }));
-    if (isFirebaseUser && user) deletePlayer(user.uid, id);
+    deletePlayer(currentUserId, id);
   };
 
+  // Toggle presence on match day
   const togglePresence = (id: string): { success: boolean; message?: string } => {
     const playerIndex = state.players.findIndex(p => p.id === id);
     if (playerIndex === -1) return { success: false, message: 'Jogador não encontrado' };
@@ -219,10 +339,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       players: s.players.map(p => p.id === id ? updatedPlayer : p)
     }));
     
-    if (isFirebaseUser && user) savePlayer(user.uid, updatedPlayer, false);
+    savePlayer(currentUserId, updatedPlayer, false);
     return { success: true };
   };
 
+  // Set explicit presence
   const setPlayerPresence = (id: string, isPresent: boolean): { success: boolean; message?: string } => {
     const playerIndex = state.players.findIndex(p => p.id === id);
     if (playerIndex === -1) return { success: false, message: 'Jogador não encontrado' };
@@ -242,16 +363,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       players: s.players.map(p => p.id === id ? updatedPlayer : p)
     }));
     
-    if (isFirebaseUser && user) savePlayer(user.uid, updatedPlayer, false);
+    savePlayer(currentUserId, updatedPlayer, false);
     return { success: true };
   };
 
+  // Clear all presence (new match day)
   const clearAllPresence = () => {
     const updated = state.players.map(p => ({ ...p, isPresent: false }));
     setState(s => ({ ...s, players: updated }));
-    if (isFirebaseUser && user) {
-      updated.forEach(p => savePlayer(user.uid, p, false));
-    }
+    updated.forEach(p => savePlayer(currentUserId, p, false));
   };
 
   const setPaymentStatus = (id: string, status: Player['paymentStatus']) => {
@@ -267,17 +387,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       teamQueue: finalQueue,
       benchPlayers: finalBench,
     }));
-    if (isFirebaseUser && user) {
-      saveSettings(user.uid, {
-        currentTeams: teams,
-        teamQueue: finalQueue,
-        benchPlayers: finalBench,
-      }, false);
-    }
+    saveSettings(currentUserId, {
+      currentTeams: teams,
+      teamQueue: finalQueue,
+      benchPlayers: finalBench,
+    }, false);
   };
 
   const generateTeams = (balanced: boolean): Team[] => {
-    // Only present and not injured/tired
     const availablePlayers = state.players.filter(p => p.isPresent && !p.isInjuredOrTired);
     
     let sortedPlayers = [...availablePlayers];
@@ -334,24 +451,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       benchPlayers: extraBenchPlayers,
     }));
 
-    if (isFirebaseUser && user) {
-      saveSettings(user.uid, {
-        currentTeams: teams,
-        teamQueue: queue,
-        benchPlayers: extraBenchPlayers,
-      }, false);
-    }
+    saveSettings(currentUserId, {
+      currentTeams: teams,
+      teamQueue: queue,
+      benchPlayers: extraBenchPlayers,
+    }, false);
 
     return teams;
   };
 
   const startMatch = (teamA: Team, teamB: Team) => {
-    // Ensure teams have fresh roster from currentTeams if available
     const freshTeamA = state.currentTeams.find(t => t.id === teamA.id) || teamA;
     const freshTeamB = state.currentTeams.find(t => t.id === teamB.id) || teamB;
 
     const newMatch: Match = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: 'm_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
       teamA: { ...freshTeamA, score: 0 },
       teamB: { ...freshTeamB, score: 0 },
       status: 'in_progress',
@@ -360,7 +474,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       startTime: Date.now(),
     };
 
-    // If queue doesn't have the remaining teams, set it up
     let queue = [...state.teamQueue];
     if (state.currentTeams.length > 2 && queue.length === 0) {
       queue = state.currentTeams
@@ -369,7 +482,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     setState(s => ({ ...s, matches: [...s.matches, newMatch], teamQueue: queue }));
-    if (isFirebaseUser && user) saveMatch(user.uid, newMatch, true);
+    saveMatch(currentUserId, newMatch, true);
   };
 
   const updateMatchScore = (matchId: string, teamId: string, type: 'goal' | 'assist', playerId?: string) => {
@@ -378,7 +491,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const match = state.matches[matchIndex];
     const newEvent = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: 'ev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
       type,
       playerId: playerId || '',
       teamId,
@@ -402,7 +515,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     newMatches[matchIndex] = updatedMatch;
 
     setState(s => ({ ...s, matches: newMatches }));
-    if (isFirebaseUser && user) saveMatch(user.uid, updatedMatch, false);
+    saveMatch(currentUserId, updatedMatch, false);
   };
 
   const finishMatch = (matchId: string, customWinnerTeamId?: string) => {
@@ -482,10 +595,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentTeams: newCurrentTeams.length > 0 ? newCurrentTeams : s.currentTeams
     }));
     
-    if (isFirebaseUser && user) {
-      saveMatch(user.uid, updatedMatch, false);
-      modifiedPlayers.forEach(p => savePlayer(user.uid, p, false));
-    }
+    saveMatch(currentUserId, updatedMatch, false);
+    modifiedPlayers.forEach(p => savePlayer(currentUserId, p, false));
 
     const winnerTeam = teamAWonFinal ? match.teamA : teamBWonFinal ? match.teamB : null;
     const loserTeam = teamAWonFinal ? match.teamB : teamBWonFinal ? match.teamA : null;
@@ -493,18 +604,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { winnerTeam, loserTeam, isDraw: isNaturalDraw && !customWinnerTeamId };
   };
 
-  // Continuação das Partidas (Rei da Quadra: Vencedor Fica, Próximo Desafiante Entra)
+  // Continuação das Partidas (Rei da Quadra)
   const advanceToNextMatch = (advancingWinnerTeamId?: string): { success: boolean; message: string; newMatch?: Match } => {
-    // Find the most recent finished match or current in_progress match
     const lastFinishedMatch = [...state.matches].reverse().find(m => m.status === 'finished');
     if (!lastFinishedMatch) {
       return { success: false, message: 'Nenhuma partida finalizada para dar sequência.' };
     }
 
-    // Determine who stays on the pitch
     let stayingTeamId = advancingWinnerTeamId || lastFinishedMatch.winnerTeamId;
     if (!stayingTeamId || stayingTeamId === 'draw') {
-      // If draw and no winner specified, default to teamA
       stayingTeamId = lastFinishedMatch.teamA.id;
     }
 
@@ -512,11 +620,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ? lastFinishedMatch.teamB.id 
       : lastFinishedMatch.teamA.id;
 
-    // Get fresh team definitions from currentTeams
     let stayingTeam = state.currentTeams.find(t => t.id === stayingTeamId);
     let leavingTeam = state.currentTeams.find(t => t.id === leavingTeamId);
 
-    // Fallback if not found in currentTeams
     if (!stayingTeam) {
       stayingTeam = stayingTeamId === lastFinishedMatch.teamA.id ? lastFinishedMatch.teamA : lastFinishedMatch.teamB;
     }
@@ -524,9 +630,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       leavingTeam = leavingTeamId === lastFinishedMatch.teamA.id ? lastFinishedMatch.teamA : lastFinishedMatch.teamB;
     }
 
-    // Next challenger comes from the queue
     let queue = [...state.teamQueue];
-    // If queue is empty but there are more teams in currentTeams, populate it
     if (queue.length === 0 && state.currentTeams.length > 2) {
       queue = state.currentTeams
         .filter(t => t.id !== stayingTeamId && t.id !== leavingTeamId)
@@ -545,17 +649,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         players: [],
         score: 0,
       };
-      // Leaving team goes to the back of the line!
       newQueue = [...queue.slice(1), leavingTeam.id];
     } else {
-      // Only 2 teams exist in total: they play another match against each other!
       nextChallengerTeam = leavingTeam;
       newQueue = [];
     }
 
     const nextMatchNumber = (lastFinishedMatch.matchNumber || state.matches.length) + 1;
     const newMatch: Match = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: 'm_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
       teamA: { ...stayingTeam, score: 0 },
       teamB: { ...nextChallengerTeam, score: 0 },
       status: 'in_progress',
@@ -570,10 +672,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       teamQueue: newQueue,
     }));
 
-    if (isFirebaseUser && user) {
-      saveMatch(user.uid, newMatch, true);
-      saveSettings(user.uid, { teamQueue: newQueue }, false);
-    }
+    saveMatch(currentUserId, newMatch, true);
+    saveSettings(currentUserId, { teamQueue: newQueue }, false);
 
     return { 
       success: true, 
@@ -594,7 +694,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const targetTeam = state.currentTeams.find(t => t.id === teamId);
     if (!targetTeam) return { success: false, message: 'Time não encontrado.' };
 
-    // Mark player as injured/tired in master players list
     const updatedPlayers = state.players.map(p => {
       if (p.id === playerId) {
         return { 
@@ -607,21 +706,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return p;
     });
 
-    // Remove player from the team
     let teamPlayers = targetTeam.players.filter(p => p.id !== playerId);
     let substitute: Player | undefined;
     let newBench = [...state.benchPlayers];
     let customMessage = '';
 
-    // AUTO-ADJUSTMENT 1: Check Bench / Reserve Players
+    // AUTO-ADJUSTMENT 1: Banco de Reservas
     if (newBench.length > 0) {
-      // If removed was GK, pick GK first, else pick closest rating
       let subIndex = -1;
       if (player.isGoalkeeper) {
         subIndex = newBench.findIndex(bp => bp.isGoalkeeper && !bp.isInjuredOrTired);
       }
       if (subIndex === -1) {
-        // Pick field player closest in rating
         let closestDiff = 999;
         newBench.forEach((bp, idx) => {
           if (!bp.isInjuredOrTired) {
@@ -642,7 +738,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // AUTO-ADJUSTMENT 2: If NO bench, check if other teams have more players
+    // AUTO-ADJUSTMENT 2: Reequilíbrio entre times
     let updatedTeams = state.currentTeams.map(t => {
       if (t.id === teamId) {
         return { ...t, players: teamPlayers };
@@ -651,15 +747,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (!substitute && updatedTeams.length > 1) {
-      // Find a team with more players than targetTeam
       const teamsWithExcess = updatedTeams
         .filter(t => t.id !== teamId && t.players.length > teamPlayers.length)
         .sort((a, b) => b.players.length - a.players.length);
 
       if (teamsWithExcess.length > 0 && (teamsWithExcess[0].players.length - teamPlayers.length) >= 2) {
-        // Transfer 1 balanced player from excess team to balance numbers
         const donorTeam = teamsWithExcess[0];
-        // Don't take a goalkeeper if donor only has 1
         const nonGkDonors = donorTeam.players.filter(p => !p.isGoalkeeper);
         const playerToTransfer = (nonGkDonors.length > 0 ? nonGkDonors : donorTeam.players)[0];
 
@@ -684,7 +777,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       customMessage = `${player.name} saiu (${reasonLabel}). O ${targetTeam.name} jogará com ${teamPlayers.length} atletas na próxima partida.`;
     }
 
-    // Update any active match in progress with the fresh roster
     const updatedMatches = state.matches.map(m => {
       if (m.status === 'in_progress') {
         let tA = m.teamA;
@@ -710,13 +802,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       matches: updatedMatches,
     }));
 
-    if (isFirebaseUser && user) {
-      savePlayer(user.uid, updatedPlayers.find(p => p.id === playerId)!, false);
-      saveSettings(user.uid, {
-        currentTeams: updatedTeams,
-        benchPlayers: newBench,
-      }, false);
-    }
+    savePlayer(currentUserId, updatedPlayers.find(p => p.id === playerId)!, false);
+    saveSettings(currentUserId, {
+      currentTeams: updatedTeams,
+      benchPlayers: newBench,
+    }, false);
 
     return { success: true, message: customMessage, substitute };
   };
@@ -747,7 +837,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         destMsg = `adicionado de volta ao ${updatedTeams[tIdx].name}!`;
       }
     } else {
-      // Put in bench
       newBench.push({ ...player, isInjuredOrTired: false, injuryReason: undefined });
       destMsg = 'disponível no banco de reservas para a próxima partida!';
     }
@@ -759,42 +848,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       benchPlayers: newBench,
     }));
 
-    if (isFirebaseUser && user) {
-      savePlayer(user.uid, updatedPlayers.find(p => p.id === playerId)!, false);
-    }
+    savePlayer(currentUserId, updatedPlayers.find(p => p.id === playerId)!, false);
 
     return { success: true, message: `${player.name} está recuperado(a) e ${destMsg}` };
   };
 
-  // Reequilíbrio Automático dos Times com 1 clique
+  // Reequilíbrio Automático dos Times
   const autoBalanceTeams = (): { success: boolean; message: string } => {
     if (state.currentTeams.length < 2) {
       return { success: false, message: 'São necessários ao menos 2 times formados para equilibrar.' };
     }
 
-    // Collect all active players in currentTeams
     const allActive = state.currentTeams.flatMap(t => t.players).filter(p => !p.isInjuredOrTired);
     if (allActive.length === 0) {
       return { success: false, message: 'Nenhum jogador ativo para distribuir.' };
     }
 
-    // Sort by rating
     const sorted = [...allActive].sort((a, b) => b.rating - a.rating);
     const gks = sorted.filter(p => p.isGoalkeeper);
     const fields = sorted.filter(p => !p.isGoalkeeper);
 
     const numTeams = state.currentTeams.length;
-    const newTeams: Team[] = state.currentTeams.map((t, idx) => ({
+    const newTeams: Team[] = state.currentTeams.map((t) => ({
       ...t,
       players: [],
     }));
 
-    // Distribute GKs
     gks.forEach((gk, i) => {
       newTeams[i % numTeams].players.push(gk);
     });
 
-    // Snake draft field players
     let direction = 1;
     let curr = gks.length % numTeams;
     fields.forEach(p => {
@@ -807,9 +890,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     setState(s => ({ ...s, currentTeams: newTeams }));
-    if (isFirebaseUser && user) {
-      saveSettings(user.uid, { currentTeams: newTeams }, false);
-    }
+    saveSettings(currentUserId, { currentTeams: newTeams }, false);
 
     return { success: true, message: `Times reequilibrados automaticamente com paridade numérica e de estrelas!` };
   };
@@ -840,6 +921,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
 
     setState(s => ({ ...s, currentTeams: newCurrentTeams }));
+    saveSettings(currentUserId, { currentTeams: newCurrentTeams }, false);
   };
 
   const exportBackup = () => {
@@ -848,22 +930,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const restoreBackup = (jsonData: any) => {
     try {
-      const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
-      if (!data || !Array.isArray(data.players)) {
+      const validation = safeValidateBackup(jsonData);
+      if (!validation.valid || !validation.data) {
+        console.warn('Backup validation failed:', validation.error);
         return false;
       }
+      const data = validation.data;
       setState(s => ({
         ...s,
-        ...data,
-        players: data.players || s.players,
-        matches: Array.isArray(data.matches) ? data.matches : s.matches,
+        players: data.players,
+        maxPlayersPerTeam: data.maxPlayersPerTeam,
+        numberOfTeams: data.numberOfTeams,
+        matchDurationMinutes: data.matchDurationMinutes,
+        pixKey: data.pixKey,
       }));
 
-      if (isFirebaseUser && user && Array.isArray(data.players)) {
-        data.players.forEach((p: Player) => {
-          savePlayer(user.uid, p, false);
-        });
-      }
+      data.players.forEach((p: Player) => {
+        savePlayer(currentUserId, p, false);
+      });
+      saveSettings(currentUserId, {
+        maxPlayersPerTeam: data.maxPlayersPerTeam,
+        numberOfTeams: data.numberOfTeams,
+        matchDurationMinutes: data.matchDurationMinutes,
+        pixKey: data.pixKey,
+      }, false);
       return true;
     } catch (e) {
       console.error('Failed to restore backup:', e);
@@ -877,6 +967,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAdmin,
       setIsAdmin,
       unlockAdmin,
+      isDbConnected,
+      isLoadedFromDb,
+      syncWithDatabase,
       addPlayer,
       updatePlayer,
       deletePlayer: deletePlayerAction,
@@ -895,22 +988,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       autoBalanceTeams,
       swapPlayersBetweenTeams,
       setMaxPlayersPerTeam: (max) => {
-        setState(s => ({ ...s, maxPlayersPerTeam: max }));
-        if (isFirebaseUser && user) saveSettings(user.uid, { maxPlayersPerTeam: max }, false);
+        const safe = clampNumber(max, 2, 20, 5);
+        setState(s => ({ ...s, maxPlayersPerTeam: safe }));
+        saveSettings(currentUserId, { maxPlayersPerTeam: safe }, false);
       },
       setNumberOfTeams: (num) => {
-        setState(s => ({ ...s, numberOfTeams: num }));
-        if (isFirebaseUser && user) saveSettings(user.uid, { numberOfTeams: num }, false);
+        const safe = clampNumber(num, 2, 8, 2);
+        setState(s => ({ ...s, numberOfTeams: safe }));
+        saveSettings(currentUserId, { numberOfTeams: safe }, false);
       },
       setMatchDurationMinutes: (mins) => {
-        setState(s => ({ ...s, matchDurationMinutes: mins }));
-        if (isFirebaseUser && user) saveSettings(user.uid, { matchDurationMinutes: mins }, false);
+        const safe = clampNumber(mins, 3, 60, 10);
+        setState(s => ({ ...s, matchDurationMinutes: safe }));
+        saveSettings(currentUserId, { matchDurationMinutes: safe }, false);
       },
       setPixKey: (key) => {
-        setState(s => ({ ...s, pixKey: key }));
-        if (isFirebaseUser && user) saveSettings(user.uid, { pixKey: key }, false);
+        const clean = sanitizePixKey(key, 80);
+        setState(s => ({ ...s, pixKey: clean }));
+        saveSettings(currentUserId, { pixKey: clean }, false);
       },
-      adminPin,
+      adminPin: '********',
       setAdminPin,
       exportBackup,
       restoreBackup

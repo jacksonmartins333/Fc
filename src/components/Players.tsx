@@ -168,8 +168,9 @@ export function Players() {
             <input 
               required 
               type="text" 
+              maxLength={60}
               value={formData.name} 
-              onChange={e => setFormData({...formData, name: e.target.value})} 
+              onChange={e => setFormData({...formData, name: e.target.value.slice(0, 60)})} 
               className="w-full border border-slate-300 rounded-lg p-2.5 text-sm outline-none focus:border-emerald-500" 
               placeholder="Ex: Romário"
             />

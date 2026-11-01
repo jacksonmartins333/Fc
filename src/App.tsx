@@ -44,7 +44,7 @@ function UserProfile() {
 function AppContent() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const { user, login, logout, continueAsGuest, isLoggingIn, error, clearError } = useAuth();
-  const { isAdmin } = useAppContext();
+  const { isAdmin, isDbConnected } = useAppContext();
 
   if (!user) {
     return (
@@ -106,11 +106,17 @@ function AppContent() {
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       {/* Sidebar for Desktop, Bottom Nav for Mobile */}
       <div className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col h-screen sticky top-0">
-        <div className="p-6 flex items-center gap-3 border-b border-slate-100">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-700 flex items-center justify-center text-white shadow-sm font-black text-lg">
-            ⚽
+        <div className="p-6 flex items-center justify-between border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-700 flex items-center justify-center text-white shadow-sm font-black text-lg">
+              ⚽
+            </div>
+            <span className="font-black text-xl tracking-tight text-slate-800">Grota F.C</span>
           </div>
-          <span className="font-black text-xl tracking-tight text-slate-800">Grota F.C</span>
+          <span 
+            title={isDbConnected ? "Banco de dados Firebase conectado e salvando em tempo real" : "Modo offline - salvando localmente"}
+            className={`w-2.5 h-2.5 rounded-full ${isDbConnected ? 'bg-emerald-500 ring-4 ring-emerald-100' : 'bg-amber-400'}`}
+          />
         </div>
         <div className="p-4 flex-1 flex flex-col">
           <Navigation currentTab={currentTab} setCurrentTab={setCurrentTab} />
@@ -120,14 +126,18 @@ function AppContent() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 pb-24 md:pb-0 min-h-screen">
+      <div className="flex-1 pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-8 min-h-screen">
         {/* Mobile Header */}
         <div className="md:hidden bg-white border-b border-slate-200 p-4 sticky top-0 z-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-green-700 flex items-center justify-center text-white shadow-sm font-black text-sm">
               ⚽
             </div>
             <span className="font-black text-lg tracking-tight text-slate-800">Grota F.C</span>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Banco Nuvem
+            </span>
           </div>
           <div>
             <button 
