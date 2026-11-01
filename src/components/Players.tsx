@@ -113,7 +113,7 @@ export function Players() {
             <button
               onClick={() => setShowPinModal(true)}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
-              title="Acesso com PIN 162222"
+              title="Acesso de Organizador"
             >
               <Lock size={14} className="text-slate-500" />
               <span>Desbloquear Edição</span>

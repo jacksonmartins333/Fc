@@ -15,6 +15,9 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
   const { 
     isAdmin,
     setIsAdmin,
+    unlockAdmin,
+    adminPin,
+    setAdminPin,
     pixKey, 
     setPixKey, 
     maxPlayersPerTeam, 
@@ -31,17 +34,31 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [showDomainHelp, setShowDomainHelp] = useState(false);
+  const [newPin, setNewPin] = useState('');
+  const [pinChangeMsg, setPinChangeMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUnlock = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === '162222') {
-      setIsAdmin(true);
+    if (unlockAdmin(password)) {
       setError(false);
+      setPassword('');
     } else {
       setError(true);
       setPassword('');
     }
+  };
+
+  const handleUpdatePin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPin.trim() || newPin.trim().length < 4) {
+      setPinChangeMsg('A nova senha deve ter pelo menos 4 caracteres.');
+      return;
+    }
+    setAdminPin(newPin.trim());
+    setNewPin('');
+    setPinChangeMsg('Senha do organizador alterada com sucesso!');
+    setTimeout(() => setPinChangeMsg(''), 4000);
   };
 
   if (!isAdmin) {
@@ -164,7 +181,7 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
             )}
             <div>
               <div className="font-bold text-slate-800">{user?.displayName || 'Administrador (Grota F.C)'}</div>
-              <div className="text-xs text-slate-500">{user?.email || 'Acesso Direto (Senha 162222)'}</div>
+              <div className="text-xs text-slate-500">{user?.email || 'Organizador Autenticado'}</div>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
@@ -264,6 +281,55 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
                 onChange={handleFileUpload}
               />
             </div>
+          </div>
+
+          {/* Senha de Acesso do Organizador */}
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-2">
+              <Lock size={18} className="text-indigo-600" /> Senha do Organizador (PIN)
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Defina uma senha segura para que apenas você e quem você autorizar tenha acesso às funções de organizador e edição do elenco.
+            </p>
+
+            <form onSubmit={handleUpdatePin} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nova Senha / PIN
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      type="password"
+                      value={newPin}
+                      onChange={(e) => {
+                        setNewPin(e.target.value);
+                        if (pinChangeMsg) setPinChangeMsg('');
+                      }}
+                      placeholder="Digite a nova senha (mínimo 4 dígitos)"
+                      className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition cursor-pointer"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+              {pinChangeMsg && (
+                <div className={`text-xs p-2.5 rounded-lg font-medium flex items-center gap-1.5 ${
+                  pinChangeMsg.includes('sucesso') 
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                    : 'bg-red-50 text-red-600 border border-red-200'
+                }`}>
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  <span>{pinChangeMsg}</span>
+                </div>
+              )}
+            </form>
           </div>
         </div>
 

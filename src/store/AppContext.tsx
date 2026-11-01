@@ -50,6 +50,8 @@ interface AppContextType extends AppState {
   setNumberOfTeams: (num: number) => void;
   setMatchDurationMinutes: (mins: number) => void;
   setPixKey: (key: string) => void;
+  adminPin: string;
+  setAdminPin: (pin: string) => void;
   exportBackup: () => string;
   restoreBackup: (jsonData: any) => boolean;
 }
@@ -93,6 +95,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [isAdmin, setIsAdminState] = useState(() => sessionStorage.getItem('admin_unlocked') === 'true');
+  const [adminPin, setAdminPinState] = useState<string>(() => {
+    return localStorage.getItem('pelada_admin_pin') || '162222';
+  });
 
   const setIsAdmin = (val: boolean) => {
     setIsAdminState(val);
@@ -103,8 +108,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const setAdminPin = (newPin: string) => {
+    const trimmed = newPin.trim();
+    if (trimmed) {
+      setAdminPinState(trimmed);
+      localStorage.setItem('pelada_admin_pin', trimmed);
+    }
+  };
+
   const unlockAdmin = (pass: string): boolean => {
-    if (pass.trim() === '162222') {
+    if (pass.trim() === adminPin) {
       setIsAdmin(true);
       return true;
     }
@@ -897,6 +910,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState(s => ({ ...s, pixKey: key }));
         if (isFirebaseUser && user) saveSettings(user.uid, { pixKey: key }, false);
       },
+      adminPin,
+      setAdminPin,
       exportBackup,
       restoreBackup
     }}>

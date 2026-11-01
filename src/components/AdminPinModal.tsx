@@ -66,7 +66,7 @@ export function AdminPinModal({
                 type="password"
                 inputMode="numeric"
                 autoFocus
-                placeholder="Senha / PIN (ex: 162222)"
+                placeholder="Digite a senha do organizador"
                 value={pin}
                 onChange={(e) => {
                   setPin(e.target.value);
@@ -81,7 +81,7 @@ export function AdminPinModal({
             </div>
             {error && (
               <p className="text-xs text-red-600 mt-1.5 font-medium">
-                Senha incorreta. A senha padrão do organizador é 162222.
+                Senha incorreta. Tente novamente.
               </p>
             )}
           </div>
