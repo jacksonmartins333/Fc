@@ -226,16 +226,23 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Jogadores por Time</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Pessoas por Time (Total no time)
+                </label>
                 <select
                   value={maxPlayersPerTeam}
                   onChange={(e) => setMaxPlayersPerTeam(Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none font-bold text-slate-800"
                 >
-                  {[4, 5, 6, 7, 8, 9, 10, 11].map(n => (
-                    <option key={n} value={n}>{n} na linha + Goleiro</option>
+                  {[3, 4, 5, 6, 7, 8, 9, 10, 11].map(n => (
+                    <option key={n} value={n}>
+                      {n} pessoas por time {n === 4 ? '(Padrão: 4 por time - 5 times = 20 atletas)' : ''}
+                    </option>
                   ))}
                 </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Com 4 pessoas por time e 5 times, são 20 atletas confirmados para fechar todos completos.
+                </p>
               </div>
 
               <div>
@@ -245,7 +252,7 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
                   onChange={(e) => setNumberOfTeams(Number(e.target.value))}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                 >
-                  {[2, 3, 4].map(n => (
+                  {[2, 3, 4, 5, 6].map(n => (
                     <option key={n} value={n}>{n} Times</option>
                   ))}
                 </select>

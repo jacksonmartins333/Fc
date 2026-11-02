@@ -31,8 +31,10 @@ export function MatchDay({ setCurrentTab }: MatchDayProps) {
     generateTeams, 
     startMatch,
     currentTeams,
+    benchPlayers,
     autoBalanceTeams,
-    markPlayerTiredOrInjured
+    markPlayerTiredOrInjured,
+    fillTwentyPlayersForFiveTeams
   } = useAppContext();
   
   const [generatedTeams, setGeneratedTeams] = useState<Team[]>([]);
@@ -52,8 +54,7 @@ export function MatchDay({ setCurrentTab }: MatchDayProps) {
 
   const presentPlayers = players.filter(p => p.isPresent);
   const absentPlayers = players.filter(p => !p.isPresent);
-  const totalSlots = maxPlayersPerTeam * numberOfTeams;
-  const isFull = presentPlayers.length >= totalSlots;
+  const isFull = false; // Vagas ilimitadas conforme solicitado
 
   const showToast = (text: string, type: 'error' | 'success' = 'success') => {
     setStatusMessage({ text, type });
@@ -231,18 +232,18 @@ export function MatchDay({ setCurrentTab }: MatchDayProps) {
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4 text-sm">
           <div className="flex items-center gap-2 font-medium text-slate-700">
             <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
-            Configuração da Partida:
+            Configuração da Pelada:
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-slate-600 text-xs font-semibold">Jogadores / time:</label>
+              <label className="text-slate-600 text-xs font-semibold">Pessoas / time:</label>
               <input 
                 type="number" 
                 min="3" 
-                max="11" 
+                max="8" 
                 value={maxPlayersPerTeam} 
                 onChange={(e) => setMaxPlayersPerTeam(Number(e.target.value))} 
-                className="w-16 border border-slate-300 rounded-lg px-2 py-1 text-center font-bold" 
+                className="w-16 border border-slate-300 rounded-lg px-2 py-1 text-center font-bold text-indigo-700" 
               />
             </div>
             <div className="flex items-center gap-2">
@@ -250,18 +251,52 @@ export function MatchDay({ setCurrentTab }: MatchDayProps) {
               <input 
                 type="number" 
                 min="2" 
-                max="6" 
+                max="8" 
                 value={numberOfTeams} 
                 onChange={(e) => setNumberOfTeams(Number(e.target.value))} 
-                className="w-16 border border-slate-300 rounded-lg px-2 py-1 text-center font-bold" 
+                className="w-16 border border-slate-300 rounded-lg px-2 py-1 text-center font-bold text-emerald-700" 
               />
             </div>
-            <div className="text-xs text-slate-400">
-              Total de vagas: <strong className="text-slate-700">{totalSlots}</strong>
+            <div className="text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md font-bold border border-emerald-200">
+              Vagas: Ilimitadas
             </div>
           </div>
         </div>
       )}
+
+      {/* Regra de Formação dos Times e Meta de Atletas */}
+      <div className="bg-blue-50/90 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-blue-950">
+        <div>
+          <div className="flex items-center gap-2 font-bold text-sm text-blue-950 mb-1">
+            <span>⚽ Regra: {numberOfTeams} times de {maxPlayersPerTeam} pessoas cada (Total: {numberOfTeams * maxPlayersPerTeam} atletas)</span>
+          </div>
+          <p className="text-blue-800 leading-relaxed">
+            {presentPlayers.length < numberOfTeams * maxPlayersPerTeam ? (
+              <span>
+                Para que os <strong>{numberOfTeams} times</strong> fiquem completos com <strong>{maxPlayersPerTeam} pessoas cada</strong>, são necessários <strong>{numberOfTeams * maxPlayersPerTeam} atletas confirmados</strong> na lista. Atualmente há <strong>{presentPlayers.length}</strong> (faltam {numberOfTeams * maxPlayersPerTeam - presentPlayers.length} atletas).
+              </span>
+            ) : (
+              <span>
+                ✅ Lista com <strong>{presentPlayers.length} atletas confirmados</strong>! Todos os {numberOfTeams} times serão formados com <strong>exatamente {maxPlayersPerTeam} pessoas cada</strong>. {presentPlayers.length > numberOfTeams * maxPlayersPerTeam && `Os outros ${presentPlayers.length - (numberOfTeams * maxPlayersPerTeam)} atletas aguardarão no banco/lista de espera.`}
+              </span>
+            )}
+          </p>
+        </div>
+
+        {presentPlayers.length < numberOfTeams * maxPlayersPerTeam && (
+          <button
+            onClick={() => {
+              fillTwentyPlayersForFiveTeams();
+              showToast('20 atletas confirmados carregados! Agora são 5 times completos de 4 pessoas.');
+            }}
+            className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer active:scale-95"
+            title="Preencher automaticamente 20 atletas confirmados para testar 5 times de 4"
+          >
+            <Users size={14} />
+            <span>Preencher 20 Atletas (5x4)</span>
+          </button>
+        )}
+      </div>
 
       {/* Vagas Counter & Quick Filters */}
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-4 space-y-4">
@@ -269,20 +304,17 @@ export function MatchDay({ setCurrentTab }: MatchDayProps) {
           <div>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black text-slate-800 tracking-tight">{presentPlayers.length}</span>
-              <span className="text-slate-500 font-semibold text-sm">/ {totalSlots} Confirmados</span>
+              <span className="text-slate-500 font-semibold text-sm">Atletas Confirmados</span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {isFull 
-                ? 'Lista completa! Novos jogadores entram na espera caso alguém saia.' 
-                : `Restam ${totalSlots - presentPlayers.length} vaga(s) para fechar a pelada.`}
+            <p className="text-xs text-slate-500 mt-0.5">
+              Sem limite de vagas: todos os atletas confirmados entram no sorteio dos <strong>{numberOfTeams} times</strong>.
             </p>
           </div>
           
           <div className="flex items-center gap-2">
-            <div className={`px-3 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider ${
-              isFull ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-            }`}>
-              {isFull ? '● Lista Fechada' : '● Vagas Abertas'}
+            <div className="px-3 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Lista Aberta (Sem Limite)
             </div>
           </div>
         </div>
@@ -405,9 +437,8 @@ export function MatchDay({ setCurrentTab }: MatchDayProps) {
                   ) : (
                     <button
                       onClick={(e) => handleJoinList(player, e)}
-                      disabled={isFull}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
-                      title={isFull ? 'Vagas esgotadas' : 'Confirmar presença deste jogador'}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                      title="Confirmar presença deste jogador"
                     >
                       <UserPlus size={14} />
                       <span>Entrar</span>
@@ -502,9 +533,8 @@ export function MatchDay({ setCurrentTab }: MatchDayProps) {
                   ) : (
                     <button
                       onClick={(e) => handleJoinList(player, e)}
-                      disabled={isFull}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
-                      title={isFull ? 'Vagas esgotadas' : 'Confirmar presença deste jogador'}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                      title="Confirmar presença deste jogador"
                     >
                       <UserPlus size={14} />
                       <span>Entrar</span>
@@ -641,6 +671,38 @@ export function MatchDay({ setCurrentTab }: MatchDayProps) {
               </div>
             ))}
           </div>
+
+          {/* Lista de Espera / Banco de Reservas */}
+          {benchPlayers.length > 0 && (
+            <div className="bg-amber-50/70 border-2 border-amber-200 rounded-xl p-4 shadow-xs">
+              <div className="flex items-center justify-between mb-3 border-b border-amber-200 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">⏳</span>
+                  <h4 className="font-bold text-amber-950 text-sm">
+                    Lista de Espera / Próximos da Fila ({benchPlayers.length})
+                  </h4>
+                </div>
+                <span className="text-xs text-amber-700 font-medium">
+                  Próximos a entrar por ordem de descanso
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {benchPlayers.map((p, idx) => (
+                  <div key={p.id} className="bg-white border border-amber-300 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-800 flex items-center gap-1.5 shadow-2xs">
+                    <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center justify-center text-[10px]">
+                      {idx + 1}º
+                    </span>
+                    <span>{p.name}</span>
+                    {idx === benchPlayers.length - 1 && benchPlayers.length > 1 && (
+                      <span className="text-[9px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded font-bold">
+                        Último da lista
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {(currentTeams.length > 0 ? currentTeams : generatedTeams).length >= 2 && (
             <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-100">

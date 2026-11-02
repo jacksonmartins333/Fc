@@ -458,13 +458,29 @@ export function Gamecenter() {
 
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {/* Banco de Reservas disponíveis */}
-            {benchPlayers.map(p => (
+            {benchPlayers.map((p, idx) => (
               <div key={`bench_${p.id}`} className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs">
                 <div>
-                  <span className="font-bold text-slate-800 text-sm block">
-                    {p.name} {p.isGoalkeeper && <span className="text-[10px] text-amber-700 bg-amber-100 px-1 py-0.5 rounded font-bold">GOL</span>}
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                      {idx + 1}º da fila
+                    </span>
+                    <span className="font-bold text-slate-800 text-sm">
+                      {p.name}
+                    </span>
+                    {p.isGoalkeeper && (
+                      <span className="text-[10px] text-amber-700 bg-amber-100 px-1 py-0.5 rounded font-bold">
+                        GOL
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {idx === benchPlayers.length - 1 && benchPlayers.length > 1 ? (
+                      <span className="text-amber-700 font-semibold">Último da lista (recém-descansado)</span>
+                    ) : (
+                      <span className="text-emerald-600 font-semibold">Próximo a entrar na vaga</span>
+                    )}
                   </span>
-                  <span className="text-xs text-emerald-600 font-semibold">Reserva disponível</span>
                 </div>
                 <div className="flex gap-0.5 text-slate-300">
                   {Array.from({length: p.rating}).map((_, i) => (

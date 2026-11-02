@@ -1,6 +1,6 @@
 import React from 'react';
 import { Player, Team } from '../types';
-import { HeartCrack, UserMinus, BatteryLow, AlertTriangle, X } from 'lucide-react';
+import { HeartCrack, UserMinus, BatteryLow, AlertTriangle, X, ListOrdered } from 'lucide-react';
 
 interface TiredPlayerModalProps {
   isOpen: boolean;
@@ -42,9 +42,15 @@ export function TiredPlayerModal({
           </button>
         </div>
 
-        <p className="text-sm text-slate-600 mb-5 bg-amber-50 border border-amber-200 rounded-xl p-3">
-          ⚡ <strong>Ajuste Automático:</strong> Se houver reservas no banco, um substituto entrará automaticamente para manter o <strong>{team.name}</strong> completo. Caso contrário, o time será ajustado para a próxima partida.
-        </p>
+        <div className="text-xs text-slate-600 mb-5 bg-amber-50 border border-amber-200 rounded-xl p-3.5 leading-relaxed">
+          <div className="flex items-center gap-1.5 font-bold text-amber-900 mb-1">
+            <ListOrdered size={16} className="text-amber-700 shrink-0" />
+            <span>Regra de Ajuste da Pelada:</span>
+          </div>
+          <p>
+            Ao descansar, <strong>{player.name}</strong> sai do <strong>{team.name}</strong> e vai para o <strong>último da lista</strong> de espera, e o próximo da fila assume o lugar para manter o time completo!
+          </p>
+        </div>
 
         <div className="space-y-2.5 mb-6">
           <button
@@ -52,16 +58,18 @@ export function TiredPlayerModal({
               onConfirm(player.id, team.id, 'tired');
               onClose();
             }}
-            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 transition text-left group"
+            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/50 transition text-left group cursor-pointer active:scale-98"
           >
             <div className="flex items-center gap-3">
               <BatteryLow className="text-amber-500 group-hover:scale-110 transition-transform" size={20} />
               <div>
                 <span className="font-bold text-slate-800 block text-sm">Cansou / Fôlego</span>
-                <span className="text-xs text-slate-500">Sai para descansar no banco e pode retornar mais tarde</span>
+                <span className="text-xs text-slate-500">
+                  Vai para o último da lista de espera e o próximo da fila assume
+                </span>
               </div>
             </div>
-            <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-md">
+            <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-md shrink-0">
               Descansar
             </span>
           </button>
@@ -71,16 +79,18 @@ export function TiredPlayerModal({
               onConfirm(player.id, team.id, 'injured');
               onClose();
             }}
-            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-red-400 hover:bg-red-50/50 transition text-left group"
+            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-red-400 hover:bg-red-50/50 transition text-left group cursor-pointer active:scale-98"
           >
             <div className="flex items-center gap-3">
               <AlertTriangle className="text-red-500 group-hover:scale-110 transition-transform" size={20} />
               <div>
                 <span className="font-bold text-slate-800 block text-sm">Machucou / Dor</span>
-                <span className="text-xs text-slate-500">Lesionou e não joga mais nas partidas de hoje</span>
+                <span className="text-xs text-slate-500">
+                  Lesionou e não joga mais nas partidas de hoje
+                </span>
               </div>
             </div>
-            <span className="text-xs font-bold text-red-700 bg-red-100 px-2.5 py-1 rounded-md">
+            <span className="text-xs font-bold text-red-700 bg-red-100 px-2.5 py-1 rounded-md shrink-0">
               Lesão
             </span>
           </button>
@@ -90,16 +100,18 @@ export function TiredPlayerModal({
               onConfirm(player.id, team.id, 'left');
               onClose();
             }}
-            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition text-left group"
+            className="w-full flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition text-left group cursor-pointer active:scale-98"
           >
             <div className="flex items-center gap-3">
               <UserMinus className="text-slate-500 group-hover:scale-110 transition-transform" size={20} />
               <div>
                 <span className="font-bold text-slate-800 block text-sm">Precisou Ir Embora</span>
-                <span className="text-xs text-slate-500">Sai da lista e desocupa a vaga definitivamente hoje</span>
+                <span className="text-xs text-slate-500">
+                  Desocupa a vaga definitivamente hoje
+                </span>
               </div>
             </div>
-            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md">
+            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md shrink-0">
               Foi embora
             </span>
           </button>
@@ -108,7 +120,7 @@ export function TiredPlayerModal({
         <div className="flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-slate-600 text-sm font-semibold hover:bg-slate-100 transition"
+            className="px-4 py-2 rounded-xl text-slate-600 text-sm font-semibold hover:bg-slate-100 transition cursor-pointer"
           >
             Cancelar
           </button>

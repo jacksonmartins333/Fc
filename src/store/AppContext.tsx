@@ -54,6 +54,7 @@ interface AppContextType extends AppState {
   setNumberOfTeams: (num: number) => void;
   setMatchDurationMinutes: (mins: number) => void;
   setPixKey: (key: string) => void;
+  fillTwentyPlayersForFiveTeams: () => void;
   adminPin: string;
   setAdminPin: (pin: string) => Promise<void>;
   exportBackup: () => string;
@@ -61,23 +62,36 @@ interface AppContextType extends AppState {
 }
 
 const initialDefaultPlayers: Player[] = [
-  { id: 'p1', name: 'João Silva', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 5, assists: 3, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
-  { id: 'p2', name: 'Carlos Henrique', type: 'mensalista', rating: 3, paymentStatus: 'pendente', isGoalkeeper: false, isPresent: true, stats: { goals: 2, assists: 1, matchesWon: 1, matchesPlayed: 3, goalsConceded: 0 } },
-  { id: 'p3', name: 'Marcos Vinícius', type: 'mensalista', rating: 5, paymentStatus: 'atrasado', isGoalkeeper: false, isPresent: true, stats: { goals: 7, assists: 4, matchesWon: 3, matchesPlayed: 3, goalsConceded: 0 } },
-  { id: 'p4', name: 'Lucas Goleiro', type: 'avulso', rating: 4, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 0, matchesWon: 2, matchesPlayed: 3, goalsConceded: 4 } },
-  { id: 'p5', name: 'Pedro Santos', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 1, assists: 2, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
-  { id: 'p6', name: 'Gabriel Muralha', type: 'mensalista', rating: 5, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 1, matchesWon: 3, matchesPlayed: 3, goalsConceded: 3 } },
-  { id: 'p7', name: 'Matheus Costa', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 4, assists: 3, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
-  { id: 'p8', name: 'Rafael Souza', type: 'avulso', rating: 3, paymentStatus: 'pendente', isGoalkeeper: false, isPresent: true, stats: { goals: 2, assists: 0, matchesWon: 1, matchesPlayed: 2, goalsConceded: 0 } },
-  { id: 'p9', name: 'Bruno Lima', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 3, assists: 2, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
-  { id: 'p10', name: 'Felipe Rocha', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 1, assists: 1, matchesWon: 1, matchesPlayed: 2, goalsConceded: 0 } },
+  // 5 Goleiros (1 para cada um dos 5 times)
+  { id: 'p1', name: 'Lucas Goleiro', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 0, matchesWon: 2, matchesPlayed: 3, goalsConceded: 3 } },
+  { id: 'p2', name: 'Gabriel Muralha', type: 'mensalista', rating: 5, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 1, matchesWon: 3, matchesPlayed: 3, goalsConceded: 2 } },
+  { id: 'p3', name: 'Daniel Paredão', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 0, matchesWon: 1, matchesPlayed: 2, goalsConceded: 4 } },
+  { id: 'p4', name: 'Gustavo Luva', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 0, matchesWon: 1, matchesPlayed: 2, goalsConceded: 3 } },
+  { id: 'p5', name: 'Marcelo Fechado', type: 'avulso', rating: 4, paymentStatus: 'pago', isGoalkeeper: true, isPresent: true, stats: { goals: 0, assists: 0, matchesWon: 2, matchesPlayed: 3, goalsConceded: 2 } },
+
+  // 15 Jogadores de Linha (3 para cada um dos 5 times = 4 pessoas por time)
+  { id: 'p6', name: 'João Silva', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 5, assists: 3, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p7', name: 'Carlos Henrique', type: 'mensalista', rating: 3, paymentStatus: 'pendente', isGoalkeeper: false, isPresent: true, stats: { goals: 2, assists: 1, matchesWon: 1, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p8', name: 'Marcos Vinícius', type: 'mensalista', rating: 5, paymentStatus: 'atrasado', isGoalkeeper: false, isPresent: true, stats: { goals: 7, assists: 4, matchesWon: 3, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p9', name: 'Pedro Santos', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 1, assists: 2, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p10', name: 'Matheus Costa', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 4, assists: 3, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p11', name: 'Rafael Souza', type: 'avulso', rating: 3, paymentStatus: 'pendente', isGoalkeeper: false, isPresent: true, stats: { goals: 2, assists: 0, matchesWon: 1, matchesPlayed: 2, goalsConceded: 0 } },
+  { id: 'p12', name: 'Bruno Lima', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 3, assists: 2, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p13', name: 'Felipe Rocha', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 1, assists: 1, matchesWon: 1, matchesPlayed: 2, goalsConceded: 0 } },
+  { id: 'p14', name: 'Rodrigo Canhota', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 3, assists: 3, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p15', name: 'André Pivô', type: 'mensalista', rating: 5, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 6, assists: 2, matchesWon: 3, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p16', name: 'Thiago Zagueiro', type: 'avulso', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 2, assists: 1, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p17', name: 'Leonardo Meia', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 3, assists: 4, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p18', name: 'Diego Drible', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 2, assists: 2, matchesWon: 1, matchesPlayed: 2, goalsConceded: 0 } },
+  { id: 'p19', name: 'Vinícius Veloz', type: 'mensalista', rating: 4, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 4, assists: 1, matchesWon: 2, matchesPlayed: 3, goalsConceded: 0 } },
+  { id: 'p20', name: 'Samuel Chute', type: 'avulso', rating: 3, paymentStatus: 'pago', isGoalkeeper: false, isPresent: true, stats: { goals: 1, assists: 2, matchesWon: 1, matchesPlayed: 2, goalsConceded: 0 } },
 ];
 
 const defaultState: AppState = {
   players: [],
   matches: [],
-  maxPlayersPerTeam: 5,
-  numberOfTeams: 2,
+  maxPlayersPerTeam: 4,
+  numberOfTeams: 5,
   pixKey: '',
   currentTeams: [],
   teamQueue: [],
@@ -97,7 +111,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed.players) && parsed.players.length > 0) {
-          return { ...defaultState, ...parsed };
+          return { 
+            ...defaultState, 
+            ...parsed,
+            numberOfTeams: (parsed.numberOfTeams && parsed.numberOfTeams >= 3) ? parsed.numberOfTeams : 5
+          };
         }
       } catch (e) {
         console.error('Failed to parse state from localStorage');
@@ -182,26 +200,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsDbConnected(true);
         setIsLoadedFromDb(true);
 
-        if (firestorePlayers.length > 0) {
-          // Cloud Firestore has player documents - use them as master source
-          setState(s => ({
-            ...s,
-            players: firestorePlayers
-          }));
-        } else {
-          // Firestore collection is currently empty
-          // Seed the current players from state or default initial players into Firestore
-          setState(s => {
-            const playersToSeed = s.players.length > 0 ? s.players : initialDefaultPlayers;
-            playersToSeed.forEach(p => {
-              savePlayer(currentUserId, p, true);
-            });
-            return {
-              ...s,
-              players: playersToSeed
-            };
+        setState(s => {
+          // Merge to ensure no existing team player or default player is ever lost
+          const playerMap = new Map<string, Player>();
+
+          // 1. Initial default players
+          initialDefaultPlayers.forEach(p => playerMap.set(p.id, p));
+
+          // 2. Existing state players
+          s.players.forEach(p => playerMap.set(p.id, p));
+
+          // 3. Players currently in teams
+          s.currentTeams.flatMap(t => t.players).forEach(p => playerMap.set(p.id, p));
+
+          // 4. Players in bench
+          s.benchPlayers.forEach(p => playerMap.set(p.id, p));
+
+          // 5. Firestore master players
+          firestorePlayers.forEach(p => playerMap.set(p.id, p));
+
+          const merged = Array.from(playerMap.values());
+
+          // Persist any unpersisted players to Firestore
+          const firestoreIds = new Set(firestorePlayers.map(p => p.id));
+          merged.forEach(p => {
+            if (!firestoreIds.has(p.id)) {
+              savePlayer(currentUserId, p, false);
+            }
           });
-        }
+
+          return {
+            ...s,
+            players: merged
+          };
+        });
       },
       (error) => {
         console.warn('Firestore player sync note:', error);
@@ -321,46 +353,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     deletePlayer(currentUserId, id);
   };
 
-  // Toggle presence on match day
+  // Toggle presence on match day (sem limite de vagas)
   const togglePresence = (id: string): { success: boolean; message?: string } => {
-    const playerIndex = state.players.findIndex(p => p.id === id);
-    if (playerIndex === -1) return { success: false, message: 'Jogador não encontrado' };
-    const player = state.players[playerIndex];
-    
-    const currentPresent = state.players.filter(p => p.isPresent).length;
-    if (!player.isPresent && currentPresent >= (state.maxPlayersPerTeam * state.numberOfTeams)) {
-      return { success: false, message: 'Limite de vagas atingido! A lista de hoje já está cheia.' };
+    let player = state.players.find(p => p.id === id);
+    if (!player) {
+      player = initialDefaultPlayers.find(p => p.id === id);
     }
+    if (!player) {
+      player = state.currentTeams.flatMap(t => t.players).find(p => p.id === id);
+    }
+    if (!player) return { success: false, message: 'Jogador não encontrado' };
     
     const updatedPlayer = { ...player, isPresent: !player.isPresent };
+    const otherPlayers = state.players.filter(p => p.id !== id);
     
     setState(s => ({
       ...s,
-      players: s.players.map(p => p.id === id ? updatedPlayer : p)
+      players: [...otherPlayers, updatedPlayer]
     }));
     
     savePlayer(currentUserId, updatedPlayer, false);
     return { success: true };
   };
 
-  // Set explicit presence
+  // Set explicit presence (sem limite de vagas)
   const setPlayerPresence = (id: string, isPresent: boolean): { success: boolean; message?: string } => {
-    const playerIndex = state.players.findIndex(p => p.id === id);
-    if (playerIndex === -1) return { success: false, message: 'Jogador não encontrado' };
-    const player = state.players[playerIndex];
+    let player = state.players.find(p => p.id === id);
+    if (!player) {
+      player = initialDefaultPlayers.find(p => p.id === id);
+    }
+    if (!player) {
+      player = state.currentTeams.flatMap(t => t.players).find(p => p.id === id);
+    }
+    if (!player) return { success: false, message: 'Jogador não encontrado' };
     
     if (player.isPresent === isPresent) return { success: true };
-
-    const currentPresent = state.players.filter(p => p.isPresent).length;
-    if (isPresent && currentPresent >= (state.maxPlayersPerTeam * state.numberOfTeams)) {
-      return { success: false, message: 'Limite de vagas atingido! A lista de hoje já está cheia.' };
-    }
     
     const updatedPlayer = { ...player, isPresent };
+    const otherPlayers = state.players.filter(p => p.id !== id);
     
     setState(s => ({
       ...s,
-      players: s.players.map(p => p.id === id ? updatedPlayer : p)
+      players: [...otherPlayers, updatedPlayer]
     }));
     
     savePlayer(currentUserId, updatedPlayer, false);
@@ -416,30 +450,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       winsInRow: 0,
     }));
 
-    // Distribute goalkeepers first
+    const maxPerTeam = state.maxPlayersPerTeam || 4;
+
+    // 1. Distribute goalkeepers (at most 1 per team up to maxPerTeam)
     goalkeepers.forEach((gk, index) => {
-      teams[index % state.numberOfTeams].players.push(gk);
+      const teamIdx = index % state.numberOfTeams;
+      if (teams[teamIdx].players.length < maxPerTeam) {
+        teams[teamIdx].players.push(gk);
+      } else {
+        const teamWithSpace = teams.find(t => t.players.length < maxPerTeam);
+        if (teamWithSpace) {
+          teamWithSpace.players.push(gk);
+        }
+      }
     });
 
-    // Distribute remaining players up to max capacity
-    const maxCapacity = state.maxPlayersPerTeam * state.numberOfTeams;
-    const playersToAssign = fieldPlayers.slice(0, Math.max(0, maxCapacity - goalkeepers.length));
-    const extraBenchPlayers = fieldPlayers.slice(Math.max(0, maxCapacity - goalkeepers.length));
+    // 2. Distribute field players, strictly respecting maxPerTeam
+    const extraBenchPlayers: Player[] = [];
 
-    let direction = 1;
-    let currentTeamIdx = goalkeepers.length % state.numberOfTeams;
-    
-    playersToAssign.forEach(p => {
-      teams[currentTeamIdx].players.push(p);
-      if (balanced) {
-        currentTeamIdx += direction;
-        if (currentTeamIdx >= state.numberOfTeams || currentTeamIdx < 0) {
-          direction *= -1;
-          currentTeamIdx += direction;
-        }
-      } else {
-        currentTeamIdx = (currentTeamIdx + 1) % state.numberOfTeams;
+    fieldPlayers.forEach(fp => {
+      const teamsWithSpace = teams.filter(t => t.players.length < maxPerTeam);
+      
+      if (teamsWithSpace.length === 0) {
+        // All teams are completely full (each has maxPerTeam players)!
+        extraBenchPlayers.push(fp);
+        return;
       }
+
+      if (balanced) {
+        // Priority 1: Team with fewest players (guarantees all teams fill equally)
+        // Priority 2: Team with lowest total star rating (guarantees technical balance)
+        teamsWithSpace.sort((a, b) => {
+          if (a.players.length !== b.players.length) {
+            return a.players.length - b.players.length;
+          }
+          const aRating = a.players.reduce((sum, p) => sum + p.rating, 0);
+          const bRating = b.players.reduce((sum, p) => sum + p.rating, 0);
+          return aRating - bRating;
+        });
+      } else {
+        teamsWithSpace.sort((a, b) => a.players.length - b.players.length);
+      }
+
+      teamsWithSpace[0].players.push(fp);
     });
 
     const queue = teams.length > 2 ? teams.slice(2).map(t => t.id) : [];
@@ -688,107 +741,165 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     teamId: string, 
     reason: 'tired' | 'injured' | 'left' = 'tired'
   ): { success: boolean; message: string; substitute?: Player } => {
-    const player = state.players.find(p => p.id === playerId);
-    if (!player) return { success: false, message: 'Jogador não encontrado.' };
+    const targetTeamIdx = state.currentTeams.findIndex(t => t.id === teamId);
+    if (targetTeamIdx === -1) return { success: false, message: 'Time não encontrado.' };
 
-    const targetTeam = state.currentTeams.find(t => t.id === teamId);
-    if (!targetTeam) return { success: false, message: 'Time não encontrado.' };
+    const targetTeam = state.currentTeams[targetTeamIdx];
+    const lastTeamIdx = state.currentTeams.length - 1;
 
-    const updatedPlayers = state.players.map(p => {
-      if (p.id === playerId) {
-        return { 
-          ...p, 
-          isInjuredOrTired: true, 
-          injuryReason: reason,
-          isPresent: reason === 'left' ? false : p.isPresent
-        };
+    // Busca resiliente do jogador em todas as fontes
+    let player = state.players.find(p => p.id === playerId);
+    if (!player) {
+      player = targetTeam.players.find(p => p.id === playerId);
+    }
+    if (!player) {
+      for (const t of state.currentTeams) {
+        const found = t.players.find(p => p.id === playerId);
+        if (found) { player = found; break; }
       }
-      return p;
-    });
+    }
+    if (!player) {
+      player = state.benchPlayers.find(p => p.id === playerId);
+    }
+    if (!player) {
+      player = initialDefaultPlayers.find(p => p.id === playerId);
+    }
+    if (!player) {
+      player = {
+        id: playerId,
+        name: 'Jogador',
+        type: 'avulso',
+        rating: 3,
+        paymentStatus: 'pago',
+        isGoalkeeper: false,
+        isPresent: true,
+        stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 }
+      };
+    }
 
-    let teamPlayers = targetTeam.players.filter(p => p.id !== playerId);
-    let substitute: Player | undefined;
+    let newCurrentTeams = state.currentTeams.map(t => ({
+      ...t,
+      players: [...t.players]
+    }));
     let newBench = [...state.benchPlayers];
     let customMessage = '';
+    let substitute: Player | undefined;
 
-    // AUTO-ADJUSTMENT 1: Banco de Reservas
-    if (newBench.length > 0) {
-      let subIndex = -1;
-      if (player.isGoalkeeper) {
-        subIndex = newBench.findIndex(bp => bp.isGoalkeeper && !bp.isInjuredOrTired);
-      }
-      if (subIndex === -1) {
-        let closestDiff = 999;
-        newBench.forEach((bp, idx) => {
-          if (!bp.isInjuredOrTired) {
-            const diff = Math.abs(bp.rating - player.rating);
-            if (diff < closestDiff) {
-              closestDiff = diff;
-              subIndex = idx;
-            }
-          }
-        });
-      }
+    // Remove o jogador do time de onde ele saiu
+    newCurrentTeams[targetTeamIdx].players = newCurrentTeams[targetTeamIdx].players.filter(p => p.id !== playerId);
 
-      if (subIndex > -1) {
-        substitute = newBench[subIndex];
-        newBench.splice(subIndex, 1);
-        teamPlayers.push(substitute);
-        customMessage = `${player.name} saiu (${reason === 'injured' ? 'machucou' : reason === 'tired' ? 'cansou' : 'saiu'}). O reserva ${substitute.name} entrou automaticamente no ${targetTeam.name}!`;
-      }
-    }
+    const otherPlayers = state.players.filter(p => p.id !== playerId);
+    let updatedPlayers = state.players;
 
-    // AUTO-ADJUSTMENT 2: Reequilíbrio entre times
-    let updatedTeams = state.currentTeams.map(t => {
-      if (t.id === teamId) {
-        return { ...t, players: teamPlayers };
-      }
-      return t;
-    });
+    if (reason === 'tired') {
+      // CENÁRIO CANSOU: O jogador vai para o ÚLTIMO DA LISTA (banco de reservas / lista de espera)
+      // e NÃO para o Time 4!
 
-    if (!substitute && updatedTeams.length > 1) {
-      const teamsWithExcess = updatedTeams
-        .filter(t => t.id !== teamId && t.players.length > teamPlayers.length)
-        .sort((a, b) => b.players.length - a.players.length);
-
-      if (teamsWithExcess.length > 0 && (teamsWithExcess[0].players.length - teamPlayers.length) >= 2) {
-        const donorTeam = teamsWithExcess[0];
-        const nonGkDonors = donorTeam.players.filter(p => !p.isGoalkeeper);
-        const playerToTransfer = (nonGkDonors.length > 0 ? nonGkDonors : donorTeam.players)[0];
-
-        if (playerToTransfer) {
-          substitute = playerToTransfer;
-          updatedTeams = updatedTeams.map(t => {
-            if (t.id === donorTeam.id) {
-              return { ...t, players: t.players.filter(p => p.id !== playerToTransfer.id) };
-            }
-            if (t.id === teamId) {
-              return { ...t, players: [...teamPlayers, playerToTransfer] };
-            }
-            return t;
-          });
-          customMessage = `${player.name} saiu (${reason === 'injured' ? 'machucou' : 'cansou'}). Para equilibrar os times, ${playerToTransfer.name} foi transferido(a) automaticamente do ${donorTeam.name} para o ${targetTeam.name}!`;
+      // 1. Quem assume a vaga no time?
+      if (newBench.length > 0) {
+        // Se já havia atletas aguardando na lista de espera, o primeiro assume a vaga!
+        let subIdx = 0;
+        if (player.isGoalkeeper) {
+          const gkIdx = newBench.findIndex(bp => bp.isGoalkeeper);
+          if (gkIdx > -1) subIdx = gkIdx;
         }
+        substitute = newBench.splice(subIdx, 1)[0];
+        newCurrentTeams[targetTeamIdx].players.push(substitute);
+      } else if (targetTeamIdx < lastTeamIdx) {
+        // Se a lista de espera estava vazia e há times seguintes, o próximo atleta sobe para manter o time completo
+        let firstPromoted: Player | undefined;
+        for (let i = targetTeamIdx; i < lastTeamIdx; i++) {
+          const sourceTeam = newCurrentTeams[i + 1];
+          if (sourceTeam.players.length > 0) {
+            let promoIdx = 0;
+            if (player.isGoalkeeper) {
+              const gkIdx = sourceTeam.players.findIndex(p => p.isGoalkeeper);
+              if (gkIdx > -1) promoIdx = gkIdx;
+            } else {
+              const nonGkIdx = sourceTeam.players.findIndex(p => !p.isGoalkeeper);
+              if (nonGkIdx > -1) promoIdx = nonGkIdx;
+            }
+            const promotedPlayer = sourceTeam.players.splice(promoIdx, 1)[0];
+            newCurrentTeams[i].players.push(promotedPlayer);
+            if (!firstPromoted) firstPromoted = promotedPlayer;
+          }
+        }
+        substitute = firstPromoted;
+      }
+
+      // 2. Coloca o jogador cansado no ÚLTIMO DA LISTA DE ESPERA (banco)
+      const tiredPlayerAtEnd: Player = {
+        ...player,
+        isInjuredOrTired: false,
+        injuryReason: undefined,
+        isPresent: true
+      };
+      newBench.push(tiredPlayerAtEnd);
+
+      // 3. Move o jogador também para o final da lista geral de jogadores
+      updatedPlayers = [...otherPlayers, tiredPlayerAtEnd];
+
+      if (substitute) {
+        customMessage = `${player.name} saiu do ${targetTeam.name} e foi para o final da lista de espera. ${substitute.name} assumiu a vaga no time!`;
+      } else {
+        customMessage = `${player.name} saiu do ${targetTeam.name} e foi para o final da lista de espera para descansar.`;
+      }
+    } else {
+      // CENÁRIO MACHUCOU OU FOI EMBORA
+      if (newBench.length > 0) {
+        let subIdx = 0;
+        if (player.isGoalkeeper) {
+          const gkIdx = newBench.findIndex(bp => bp.isGoalkeeper);
+          if (gkIdx > -1) subIdx = gkIdx;
+        }
+        substitute = newBench.splice(subIdx, 1)[0];
+        newCurrentTeams[targetTeamIdx].players.push(substitute);
+      } else if (targetTeamIdx < lastTeamIdx) {
+        let firstPromoted: Player | undefined;
+        for (let i = targetTeamIdx; i < lastTeamIdx; i++) {
+          const sourceTeam = newCurrentTeams[i + 1];
+          if (sourceTeam.players.length > 0) {
+            let promoIdx = 0;
+            if (player.isGoalkeeper) {
+              const gkIdx = sourceTeam.players.findIndex(p => p.isGoalkeeper);
+              if (gkIdx > -1) promoIdx = gkIdx;
+            } else {
+              const nonGkIdx = sourceTeam.players.findIndex(p => !p.isGoalkeeper);
+              if (nonGkIdx > -1) promoIdx = nonGkIdx;
+            }
+            const promotedPlayer = sourceTeam.players.splice(promoIdx, 1)[0];
+            newCurrentTeams[i].players.push(promotedPlayer);
+            if (!firstPromoted) firstPromoted = promotedPlayer;
+          }
+        }
+        substitute = firstPromoted;
+      }
+
+      const injuredPlayer: Player = {
+        ...player,
+        isInjuredOrTired: true,
+        injuryReason: reason,
+        isPresent: reason === 'left' ? false : player.isPresent
+      };
+      updatedPlayers = [...otherPlayers, injuredPlayer];
+
+      const reasonText = reason === 'injured' ? 'se machucou' : 'precisou ir embora';
+      if (substitute) {
+        customMessage = `${player.name} ${reasonText}. ${substitute.name} assumiu a vaga no ${targetTeam.name}!`;
+      } else {
+        customMessage = `${player.name} ${reasonText}. O ${targetTeam.name} foi ajustado.`;
       }
     }
 
-    if (!customMessage) {
-      const reasonLabel = reason === 'injured' ? 'machucou' : reason === 'tired' ? 'cansou' : 'saiu';
-      customMessage = `${player.name} saiu (${reasonLabel}). O ${targetTeam.name} jogará com ${teamPlayers.length} atletas na próxima partida.`;
-    }
-
+    // Atualiza partidas em andamento caso os times tenham sido alterados
     const updatedMatches = state.matches.map(m => {
       if (m.status === 'in_progress') {
         let tA = m.teamA;
         let tB = m.teamB;
-        if (tA.id === teamId) {
-          const fresh = updatedTeams.find(t => t.id === teamId);
-          if (fresh) tA = { ...tA, players: fresh.players };
-        }
-        if (tB.id === teamId) {
-          const fresh = updatedTeams.find(t => t.id === teamId);
-          if (fresh) tB = { ...tB, players: fresh.players };
-        }
+        const freshA = newCurrentTeams.find(t => t.id === tA.id);
+        const freshB = newCurrentTeams.find(t => t.id === tB.id);
+        if (freshA) tA = { ...tA, players: freshA.players };
+        if (freshB) tB = { ...tB, players: freshB.players };
         return { ...m, teamA: tA, teamB: tB };
       }
       return m;
@@ -797,14 +908,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState(s => ({
       ...s,
       players: updatedPlayers,
-      currentTeams: updatedTeams,
+      currentTeams: newCurrentTeams,
       benchPlayers: newBench,
       matches: updatedMatches,
     }));
 
-    savePlayer(currentUserId, updatedPlayers.find(p => p.id === playerId)!, false);
+    const playerToSave = updatedPlayers.find(p => p.id === playerId) || player;
+    savePlayer(currentUserId, playerToSave, false);
     saveSettings(currentUserId, {
-      currentTeams: updatedTeams,
+      currentTeams: newCurrentTeams,
       benchPlayers: newBench,
     }, false);
 
@@ -813,15 +925,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Retorno de jogador recuperado
   const returnPlayerToGame = (playerId: string, targetTeamId?: string): { success: boolean; message: string } => {
-    const player = state.players.find(p => p.id === playerId);
-    if (!player) return { success: false, message: 'Jogador não encontrado.' };
-
-    const updatedPlayers = state.players.map(p => {
-      if (p.id === playerId) {
-        return { ...p, isInjuredOrTired: false, injuryReason: undefined, isPresent: true };
+    let player = state.players.find(p => p.id === playerId);
+    if (!player) {
+      player = state.benchPlayers.find(p => p.id === playerId);
+    }
+    if (!player) {
+      for (const t of state.currentTeams) {
+        const found = t.players.find(p => p.id === playerId);
+        if (found) { player = found; break; }
       }
-      return p;
-    });
+    }
+    if (!player) {
+      player = initialDefaultPlayers.find(p => p.id === playerId);
+    }
+    if (!player) {
+      player = {
+        id: playerId,
+        name: 'Jogador',
+        type: 'avulso',
+        rating: 3,
+        paymentStatus: 'pago',
+        isGoalkeeper: false,
+        isPresent: true,
+        stats: { goals: 0, assists: 0, matchesWon: 0, matchesPlayed: 0, goalsConceded: 0 }
+      };
+    }
+
+    const otherPlayers = state.players.filter(p => p.id !== playerId);
+    const recoveredPlayer: Player = { ...player, isInjuredOrTired: false, injuryReason: undefined, isPresent: true };
+    const updatedPlayers = [...otherPlayers, recoveredPlayer];
 
     let updatedTeams = [...state.currentTeams];
     let newBench = [...state.benchPlayers];
@@ -874,25 +1006,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       players: [],
     }));
 
-    gks.forEach((gk, i) => {
-      newTeams[i % numTeams].players.push(gk);
-    });
+    const maxPerTeam = state.maxPlayersPerTeam || 4;
 
-    let direction = 1;
-    let curr = gks.length % numTeams;
-    fields.forEach(p => {
-      newTeams[curr].players.push(p);
-      curr += direction;
-      if (curr >= numTeams || curr < 0) {
-        direction *= -1;
-        curr += direction;
+    // 1. Goleiros (1 por time até o limite)
+    gks.forEach((gk, i) => {
+      const teamIdx = i % numTeams;
+      if (newTeams[teamIdx].players.length < maxPerTeam) {
+        newTeams[teamIdx].players.push(gk);
+      } else {
+        const teamWithSpace = newTeams.find(t => t.players.length < maxPerTeam);
+        if (teamWithSpace) teamWithSpace.players.push(gk);
       }
     });
 
-    setState(s => ({ ...s, currentTeams: newTeams }));
-    saveSettings(currentUserId, { currentTeams: newTeams }, false);
+    // 2. Linha com paridade numérica e de estrelas
+    const extraBench: Player[] = [];
+    fields.forEach(p => {
+      const teamsWithSpace = newTeams.filter(t => t.players.length < maxPerTeam);
+      if (teamsWithSpace.length === 0) {
+        extraBench.push(p);
+        return;
+      }
+      teamsWithSpace.sort((a, b) => {
+        if (a.players.length !== b.players.length) {
+          return a.players.length - b.players.length;
+        }
+        const aRating = a.players.reduce((sum, item) => sum + item.rating, 0);
+        const bRating = b.players.reduce((sum, item) => sum + item.rating, 0);
+        return aRating - bRating;
+      });
+      teamsWithSpace[0].players.push(p);
+    });
 
-    return { success: true, message: `Times reequilibrados automaticamente com paridade numérica e de estrelas!` };
+    const newBench = [...state.benchPlayers, ...extraBench];
+
+    setState(s => ({ ...s, currentTeams: newTeams, benchPlayers: newBench }));
+    saveSettings(currentUserId, { currentTeams: newTeams, benchPlayers: newBench }, false);
+
+    return { success: true, message: `Times reequilibrados com exatamente até ${maxPerTeam} jogadores por time e estrelas balanceadas!` };
   };
 
   const swapPlayersBetweenTeams = (playerAId: string, teamAId: string, playerBId: string, teamBId: string) => {
@@ -986,9 +1137,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       markPlayerTiredOrInjured,
       returnPlayerToGame,
       autoBalanceTeams,
-      swapPlayersBetweenTeams,
+      fillTwentyPlayersForFiveTeams: () => {
+        const fullPlayers = initialDefaultPlayers.map(p => ({
+          ...p,
+          isPresent: true,
+          isInjuredOrTired: false,
+          injuryReason: undefined
+        }));
+        setState(s => ({
+          ...s,
+          players: fullPlayers,
+          numberOfTeams: 5,
+          maxPlayersPerTeam: 4,
+          currentTeams: [],
+          benchPlayers: [],
+          teamQueue: [],
+        }));
+        fullPlayers.forEach(p => savePlayer(currentUserId, p, false));
+        saveSettings(currentUserId, {
+          numberOfTeams: 5,
+          maxPlayersPerTeam: 4,
+          currentTeams: [],
+          benchPlayers: [],
+          teamQueue: [],
+        }, false);
+      },
       setMaxPlayersPerTeam: (max) => {
-        const safe = clampNumber(max, 2, 20, 5);
+        const safe = clampNumber(max, 2, 20, 4);
         setState(s => ({ ...s, maxPlayersPerTeam: safe }));
         saveSettings(currentUserId, { maxPlayersPerTeam: safe }, false);
       },
