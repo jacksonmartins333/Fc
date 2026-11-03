@@ -2,20 +2,33 @@ import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { 
   UserPlus, Shield, Star, Edit2, Trash2, Search, 
-  Lock, Unlock, AlertCircle, CheckCircle2, UserMinus, UserCheck 
+  Lock, Unlock, AlertCircle, CheckCircle2, UserMinus, UserCheck,
+  RotateCcw, Sparkles
 } from 'lucide-react';
 import { Player } from '../types';
 import { AdminPinModal } from './AdminPinModal';
 import { ConfirmDeletePlayerModal } from './ConfirmDeletePlayerModal';
+import { ConfirmActionModal } from './ConfirmActionModal';
 
 export function Players() {
-  const { players, addPlayer, deletePlayer, updatePlayer, setPlayerPresence, isAdmin } = useAppContext();
+  const { 
+    players, 
+    addPlayer, 
+    deletePlayer, 
+    updatePlayer, 
+    setPlayerPresence, 
+    isAdmin, 
+    clearEntireRoster, 
+    reloadDefaultRoster 
+  } = useAppContext();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [showPinModal, setShowPinModal] = useState(false);
   const [pendingDeletePlayer, setPendingDeletePlayer] = useState<Player | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [confirmReloadOpen, setConfirmReloadOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -136,8 +149,8 @@ export function Players() {
       </div>
 
       {/* Search and Helper */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-72">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="relative w-full md:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
             type="text"
@@ -147,9 +160,40 @@ export function Players() {
             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-emerald-500 transition"
           />
         </div>
-        <div className="text-xs text-slate-500 flex items-center gap-1.5">
-          <AlertCircle size={15} className="text-slate-400" />
-          <span>Para excluir quem não joga mais, clique no ícone da lixeira ao lado do nome.</span>
+
+        {/* Botões de Ação em Lote do Elenco */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (!isAdmin) {
+                setShowPinModal(true);
+                return;
+              }
+              setConfirmReloadOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition cursor-pointer"
+            title="Recarregar o elenco padrão com 20 atletas (5 times de 4)"
+          >
+            <RotateCcw size={14} className="text-blue-600" />
+            <span>Recarregar Elenco (20 Atletas)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!isAdmin) {
+                setShowPinModal(true);
+                return;
+              }
+              setConfirmClearOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold transition cursor-pointer"
+            title="Excluir todos os jogadores do banco de dados e zerar elenco"
+          >
+            <Trash2 size={14} className="text-red-600" />
+            <span>Zerar Elenco Todo ({players.length})</span>
+          </button>
         </div>
       </div>
 
@@ -321,8 +365,38 @@ export function Players() {
 
               {filteredPlayers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-slate-400 text-sm">
-                    {search ? `Nenhum jogador encontrado com "${search}".` : 'Nenhum jogador cadastrado no elenco.'}
+                  <td colSpan={5} className="p-8 text-center text-slate-500 text-sm">
+                    {search ? (
+                      <div>Nenhum jogador encontrado com "{search}".</div>
+                    ) : (
+                      <div className="py-6 flex flex-col items-center justify-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-2xl">
+                          ⚽
+                        </div>
+                        <div className="font-bold text-slate-700 text-base">
+                          O elenco está vazio
+                        </div>
+                        <p className="text-xs text-slate-500 max-w-sm">
+                          Não há nenhum atleta cadastrado no momento. Você pode adicionar jogadores manualmente ou recarregar a lista padrão de 20 atletas.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!isAdmin) {
+                                setShowPinModal(true);
+                                return;
+                              }
+                              setConfirmReloadOpen(true);
+                            }}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-lg transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <RotateCcw size={14} />
+                            <span>Recarregar 20 Atletas Padrão</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </td>
                 </tr>
               )}
@@ -340,7 +414,7 @@ export function Players() {
         }}
       />
 
-      {/* Modal de Confirmação de Remoção */}
+      {/* Modal de Confirmação de Remoção Individual */}
       <ConfirmDeletePlayerModal
         isOpen={Boolean(pendingDeletePlayer)}
         player={pendingDeletePlayer}
@@ -349,6 +423,36 @@ export function Players() {
         onJustRemoveFromToday={(id) => {
           setPlayerPresence(id, false);
           showNotification('Jogador retirado da lista de hoje.');
+        }}
+      />
+
+      {/* Modal de Confirmação: Excluir Todo o Elenco */}
+      <ConfirmActionModal
+        isOpen={confirmClearOpen}
+        title="Excluir Todo o Elenco?"
+        description={`Tem certeza que deseja apagar permanentemente todos os ${players.length} jogadores cadastrados no banco de dados da nuvem? Esta ação é definitiva e zerará a escalação dos times.`}
+        confirmLabel="Sim, Zerar Todo o Elenco"
+        confirmVariant="danger"
+        icon={<Trash2 size={26} className="text-red-600" />}
+        onClose={() => setConfirmClearOpen(false)}
+        onConfirm={async () => {
+          await clearEntireRoster();
+          showNotification('Todo o elenco foi excluído com sucesso do banco de dados.');
+        }}
+      />
+
+      {/* Modal de Confirmação: Recarregar Elenco Padrão */}
+      <ConfirmActionModal
+        isOpen={confirmReloadOpen}
+        title="Recarregar Elenco Padrão?"
+        description="Deseja recarregar o elenco inicial com 20 atletas (5 goleiros e 15 na linha) para 5 times de 4 jogadores? Os atletas atuais serão substituídos pelos 20 atletas padrão."
+        confirmLabel="Sim, Recarregar 20 Atletas"
+        confirmVariant="primary"
+        icon={<RotateCcw size={26} className="text-emerald-600" />}
+        onClose={() => setConfirmReloadOpen(false)}
+        onConfirm={async () => {
+          await reloadDefaultRoster();
+          showNotification('Elenco padrão de 20 atletas recarregado com sucesso!');
         }}
       />
     </div>

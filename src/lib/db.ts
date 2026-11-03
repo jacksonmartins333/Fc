@@ -148,11 +148,26 @@ export async function savePlayer(userId: string, player: Player, isNew: boolean)
   }
 }
 
-// Delete Player
+// Delete Single Player
 export async function deletePlayer(userId: string, playerId: string) {
   const path = `shared/data/players/${playerId}`;
   try {
     await deleteDoc(doc(db, `shared/data/players`, playerId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// Clear Entire Roster (Batch Delete All Players)
+export async function clearAllPlayersFromDb(userId: string, playerIds: string[]) {
+  const path = `shared/data/players`;
+  try {
+    if (playerIds.length === 0) return;
+    const batch = writeBatch(db);
+    for (const id of playerIds) {
+      batch.delete(doc(db, `shared/data/players`, id));
+    }
+    await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
   }

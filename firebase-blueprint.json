@@ -60,7 +60,9 @@
         "currentTeams": { "type": "array" },
         "teamQueue": { "type": "array" },
         "benchPlayers": { "type": "array" },
+        "adminPinHash": { "type": "string", "maxLength": 128 },
         "ownerId": { "type": "string" },
+        "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       }
     }

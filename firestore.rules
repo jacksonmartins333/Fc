@@ -2,51 +2,70 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Global Safety Net
+    // Global Safety Net: Deny all by default
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Primitive Helpers
+    // Primitive Helpers & Guards
     function isValidId(id) { 
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
     }
     function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
 
-    // Validation Blueprint for Player
+    // Validation Blueprint for Player (Anti-Update-Gap & Denial of Wallet Guards)
     function isValidPlayer(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 60
+      return data.keys().hasOnly(['name', 'type', 'rating', 'paymentStatus', 'isGoalkeeper', 'isPresent', 'isInjuredOrTired', 'injuryReason', 'stats', 'ownerId', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 60
         && data.type in ['mensalista', 'avulso']
         && data.rating is number && data.rating >= 1 && data.rating <= 5
         && data.paymentStatus in ['pago', 'pendente', 'atrasado']
         && data.isGoalkeeper is bool
         && data.isPresent is bool
+        && (!('isInjuredOrTired' in data) || data.isInjuredOrTired is bool)
+        && (!('injuryReason' in data) || data.injuryReason in ['tired', 'injured', 'left'])
         && data.stats is map
+        && data.stats.keys().hasOnly(['goals', 'assists', 'matchesWon', 'matchesPlayed', 'goalsConceded'])
         && data.stats.goals is number && data.stats.goals >= 0 && data.stats.goals <= 1000
-        && data.stats.assists is number && data.stats.assists >= 0 && data.stats.assists <= 1000;
+        && data.stats.assists is number && data.stats.assists >= 0 && data.stats.assists <= 1000
+        && (!('matchesWon' in data.stats) || (data.stats.matchesWon is number && data.stats.matchesWon >= 0 && data.stats.matchesWon <= 1000))
+        && (!('matchesPlayed' in data.stats) || (data.stats.matchesPlayed is number && data.stats.matchesPlayed >= 0 && data.stats.matchesPlayed <= 1000))
+        && (!('goalsConceded' in data.stats) || (data.stats.goalsConceded is number && data.stats.goalsConceded >= 0 && data.stats.goalsConceded <= 1000))
+        && (!('ownerId' in data) || (data.ownerId is string && data.ownerId.size() <= 128));
     }
 
     // Validation Blueprint for Match
     function isValidMatch(data) {
-      return data.teamA is map
+      return data.keys().hasOnly(['teamA', 'teamB', 'status', 'events', 'startTime', 'matchNumber', 'winnerTeamId', 'finishedAt', 'ownerId', 'createdAt', 'updatedAt'])
+        && data.teamA is map
         && data.teamB is map
         && data.status in ['not_started', 'in_progress', 'finished']
         && data.events is list
-        && data.events.size() <= 500;
+        && data.events.size() <= 500
+        && (!('startTime' in data) || data.startTime is number)
+        && (!('matchNumber' in data) || data.matchNumber is number)
+        && (!('winnerTeamId' in data) || (data.winnerTeamId is string && data.winnerTeamId.size() <= 128))
+        && (!('finishedAt' in data) || data.finishedAt is number)
+        && (!('ownerId' in data) || (data.ownerId is string && data.ownerId.size() <= 128));
     }
 
     // Validation Blueprint for Settings
     function isValidSettings(data) {
-      return (!('maxPlayersPerTeam' in data) || (data.maxPlayersPerTeam is number && data.maxPlayersPerTeam >= 2 && data.maxPlayersPerTeam <= 20))
+      return data.keys().hasOnly(['pixKey', 'maxPlayersPerTeam', 'numberOfTeams', 'matchDurationMinutes', 'currentTeams', 'teamQueue', 'benchPlayers', 'adminPinHash', 'ownerId', 'createdAt', 'updatedAt'])
+        && (!('pixKey' in data) || (data.pixKey is string && data.pixKey.size() <= 120))
+        && (!('maxPlayersPerTeam' in data) || (data.maxPlayersPerTeam is number && data.maxPlayersPerTeam >= 2 && data.maxPlayersPerTeam <= 20))
         && (!('numberOfTeams' in data) || (data.numberOfTeams is number && data.numberOfTeams >= 2 && data.numberOfTeams <= 10))
         && (!('matchDurationMinutes' in data) || (data.matchDurationMinutes is number && data.matchDurationMinutes >= 1 && data.matchDurationMinutes <= 60))
-        && (!('pixKey' in data) || (data.pixKey is string && data.pixKey.size() <= 120));
+        && (!('currentTeams' in data) || (data.currentTeams is list && data.currentTeams.size() <= 15))
+        && (!('teamQueue' in data) || (data.teamQueue is list && data.teamQueue.size() <= 15))
+        && (!('benchPlayers' in data) || (data.benchPlayers is list && data.benchPlayers.size() <= 150))
+        && (!('adminPinHash' in data) || (data.adminPinHash is string && data.adminPinHash.size() <= 128))
+        && (!('ownerId' in data) || (data.ownerId is string && data.ownerId.size() <= 128));
     }
 
     // Health check endpoint
     match /test/{testId} {
-      allow read: if true;
+      allow read: if isValidId(testId);
     }
 
     match /shared/data {
@@ -65,9 +84,9 @@ service cloud.firestore {
       }
 
       match /settings/{settingId} {
-        allow read, list: if true;
-        allow create, update: if isValidId(settingId) && isValidSettings(incoming());
-        allow delete: if isValidId(settingId);
+        allow read: if isValidId(settingId);
+        allow create, update: if settingId == 'app' && isValidSettings(incoming());
+        allow delete: if false;
       }
     }
   }

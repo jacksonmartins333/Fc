@@ -3,8 +3,9 @@ import { useAuth } from '../store/AuthContext';
 import { useAppContext } from '../store/AppContext';
 import { 
   Settings, Shield, RefreshCw, LogOut, AlertTriangle, Users, Lock, Key, 
-  Database, Download, Upload, ExternalLink, HardDrive, CheckCircle2, Cloud, Sparkles 
+  Database, Download, Upload, ExternalLink, HardDrive, CheckCircle2, Cloud, Sparkles, Trash2, RotateCcw 
 } from 'lucide-react';
+import { ConfirmActionModal } from './ConfirmActionModal';
 
 interface AdminPanelProps {
   setCurrentTab: (tab: string) => void;
@@ -29,7 +30,9 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     exportBackup,
     restoreBackup,
     isDbConnected,
-    syncWithDatabase
+    syncWithDatabase,
+    clearEntireRoster,
+    reloadDefaultRoster
   } = useAppContext();
 
   const [tempPixKey, setTempPixKey] = useState(pixKey || '');
@@ -38,7 +41,16 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
   const [showDomainHelp, setShowDomainHelp] = useState(false);
   const [newPin, setNewPin] = useState('');
   const [pinChangeMsg, setPinChangeMsg] = useState('');
+  const [panelNotice, setPanelNotice] = useState<string | null>(null);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [confirmReloadOpen, setConfirmReloadOpen] = useState(false);
+  const [confirmResetPaymentsOpen, setConfirmResetPaymentsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const showToast = (msg: string) => {
+    setPanelNotice(msg);
+    setTimeout(() => setPanelNotice(null), 3500);
+  };
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,17 +121,14 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     );
   }
 
-  const handleResetPayments = () => {
-    if (window.confirm('Tem certeza que deseja marcar todos os jogadores como "pendente"? Isso é útil para iniciar um novo mês sem apagar os jogadores.')) {
-      players.forEach(p => {
-        if (p.paymentStatus !== 'pendente') {
-          setPaymentStatus(p.id, 'pendente');
-        }
-      });
-      alert('Todos os jogadores foram marcados como pendentes.');
-    }
+  const handleResetPaymentsConfirmed = () => {
+    players.forEach(p => {
+      if (p.paymentStatus !== 'pendente') {
+        setPaymentStatus(p.id, 'pendente');
+      }
+    });
+    showToast('Todos os jogadores foram marcados como pendentes.');
   };
-
 
   const handleDownloadBackup = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(exportBackup());
@@ -129,6 +138,7 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    showToast('Download do backup concluído!');
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,12 +151,12 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
         const parsed = JSON.parse(content);
         const success = restoreBackup(parsed);
         if (success) {
-          alert('Backup restaurado com sucesso! Os jogadores e partidas foram atualizados.');
+          showToast('Backup restaurado com sucesso! Os jogadores e partidas foram atualizados.');
         } else {
-          alert('Formato de backup inválido.');
+          showToast('Formato de backup inválido.');
         }
       } catch (err) {
-        alert('Erro ao processar o arquivo de backup.');
+        showToast('Erro ao processar o arquivo de backup.');
       }
     };
     reader.readAsText(file);
@@ -156,6 +166,14 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
+      {/* Toast Notice */}
+      {panelNotice && (
+        <div className="fixed top-4 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 text-sm font-semibold animate-in slide-in-from-top duration-300">
+          <CheckCircle2 size={18} className="text-emerald-400" />
+          <span>{panelNotice}</span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Shield className="text-indigo-600" size={28} />
@@ -445,7 +463,8 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
             
             <div className="space-y-3">
               <button
-                onClick={handleResetPayments}
+                type="button"
+                onClick={() => setConfirmResetPaymentsOpen(true)}
                 className="w-full flex items-center justify-between p-3 border border-amber-200 bg-amber-50 rounded-lg hover:bg-amber-100 transition text-amber-700 font-medium text-xs cursor-pointer"
               >
                 <span className="flex items-center gap-2">
@@ -455,6 +474,33 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
               </button>
 
               <button
+                type="button"
+                onClick={() => setConfirmClearOpen(true)}
+                className="w-full flex items-center justify-between p-3 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 transition text-red-700 font-bold text-xs cursor-pointer"
+                title="Excluir permanentemente todos os jogadores do banco de dados"
+              >
+                <span className="flex items-center gap-2">
+                  <Trash2 size={16} className="text-red-600" />
+                  Excluir Todo o Elenco (Zerar Banco)
+                </span>
+                <span className="text-[10px] bg-red-200/80 px-2 py-0.5 rounded text-red-800">
+                  {players.length} atletas
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfirmReloadOpen(true)}
+                className="w-full flex items-center justify-between p-3 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 transition text-blue-700 font-medium text-xs cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <RotateCcw size={16} className="text-blue-600" />
+                  Recarregar Elenco Padrão (20 Atletas 5x4)
+                </span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => {
                   setIsAdmin(false);
                   setCurrentTab('dashboard');
@@ -468,6 +514,48 @@ export function AdminPanel({ setCurrentTab }: AdminPanelProps) {
           </div>
         </div>
       </div>
+
+      {/* Modal: Virar Mês (Reset Pagamentos) */}
+      <ConfirmActionModal
+        isOpen={confirmResetPaymentsOpen}
+        title="Virar o Mês da Pelada?"
+        description="Tem certeza que deseja marcar todos os mensalistas como 'pendente'? Isso inicia o controle de um novo mês financeiro mantendo todos os jogadores e estatísticas intactos."
+        confirmLabel="Sim, Marcar Todos Pendentes"
+        confirmVariant="warning"
+        icon={<RefreshCw size={26} className="text-amber-600" />}
+        onClose={() => setConfirmResetPaymentsOpen(false)}
+        onConfirm={handleResetPaymentsConfirmed}
+      />
+
+      {/* Modal: Excluir Todo o Elenco */}
+      <ConfirmActionModal
+        isOpen={confirmClearOpen}
+        title="Excluir Todo o Elenco?"
+        description={`Tem certeza que deseja apagar permanentemente todos os ${players.length} jogadores cadastrados no banco de dados e zerar os times? Essa ação não pode ser desfeita.`}
+        confirmLabel="Sim, Excluir Todo o Elenco"
+        confirmVariant="danger"
+        icon={<Trash2 size={26} className="text-red-600" />}
+        onClose={() => setConfirmClearOpen(false)}
+        onConfirm={async () => {
+          await clearEntireRoster();
+          showToast('Todo o elenco foi excluído com sucesso do banco de dados.');
+        }}
+      />
+
+      {/* Modal: Recarregar Elenco Padrão */}
+      <ConfirmActionModal
+        isOpen={confirmReloadOpen}
+        title="Recarregar Elenco Padrão?"
+        description="Deseja recarregar o elenco inicial com 20 atletas (5 goleiros e 15 jogadores na linha) para 5 times de 4 jogadores no banco de dados da nuvem?"
+        confirmLabel="Sim, Recarregar 20 Atletas"
+        confirmVariant="primary"
+        icon={<RotateCcw size={26} className="text-emerald-600" />}
+        onClose={() => setConfirmReloadOpen(false)}
+        onConfirm={async () => {
+          await reloadDefaultRoster();
+          showToast('Elenco de 20 atletas recarregado com sucesso no banco de dados!');
+        }}
+      />
     </div>
   );
 }

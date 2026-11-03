@@ -3,7 +3,7 @@ import { Player, Match, Team } from '../types';
 import { useAuth } from './AuthContext';
 import { 
   subscribeToPlayers, subscribeToMatches, subscribeToSettings, 
-  savePlayer, deletePlayer, saveMatch, saveSettings, testConnection 
+  savePlayer, deletePlayer, clearAllPlayersFromDb, saveMatch, saveSettings, testConnection 
 } from '../lib/db';
 import { hashAdminPin, sanitizeText, sanitizePixKey, clampNumber, safeValidateBackup } from '../lib/security';
 
@@ -55,6 +55,8 @@ interface AppContextType extends AppState {
   setMatchDurationMinutes: (mins: number) => void;
   setPixKey: (key: string) => void;
   fillTwentyPlayersForFiveTeams: () => void;
+  clearEntireRoster: () => Promise<void>;
+  reloadDefaultRoster: () => Promise<void>;
   adminPin: string;
   setAdminPin: (pin: string) => Promise<void>;
   exportBackup: () => string;
@@ -150,6 +152,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAdminPinHashState(hashed);
       localStorage.setItem('pelada_admin_pin_hash', hashed);
       localStorage.removeItem('pelada_admin_pin'); // Purge legacy plaintext PIN
+      await saveSettings(currentUserId, { adminPinHash: hashed }, false);
     }
   };
 
@@ -201,37 +204,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsLoadedFromDb(true);
 
         setState(s => {
-          // Merge to ensure no existing team player or default player is ever lost
-          const playerMap = new Map<string, Player>();
+          // If Firestore is completely empty on the very first start ever (never initialized)
+          const wasInitialized = localStorage.getItem('pelada_roster_initialized') === 'true';
+          if (firestorePlayers.length === 0 && !wasInitialized) {
+            localStorage.setItem('pelada_roster_initialized', 'true');
+            initialDefaultPlayers.forEach(p => {
+              savePlayer(currentUserId, p, true);
+            });
+            return {
+              ...s,
+              players: initialDefaultPlayers
+            };
+          }
 
-          // 1. Initial default players
-          initialDefaultPlayers.forEach(p => playerMap.set(p.id, p));
-
-          // 2. Existing state players
-          s.players.forEach(p => playerMap.set(p.id, p));
-
-          // 3. Players currently in teams
-          s.currentTeams.flatMap(t => t.players).forEach(p => playerMap.set(p.id, p));
-
-          // 4. Players in bench
-          s.benchPlayers.forEach(p => playerMap.set(p.id, p));
-
-          // 5. Firestore master players
-          firestorePlayers.forEach(p => playerMap.set(p.id, p));
-
-          const merged = Array.from(playerMap.values());
-
-          // Persist any unpersisted players to Firestore
+          // Otherwise, Firestore is the single source of truth:
+          // Deleted players stay deleted and are never resurrected!
           const firestoreIds = new Set(firestorePlayers.map(p => p.id));
-          merged.forEach(p => {
-            if (!firestoreIds.has(p.id)) {
-              savePlayer(currentUserId, p, false);
-            }
-          });
 
           return {
             ...s,
-            players: merged
+            players: firestorePlayers,
+            currentTeams: s.currentTeams.map(t => ({
+              ...t,
+              players: t.players.filter(p => firestoreIds.has(p.id))
+            })),
+            benchPlayers: s.benchPlayers.filter(p => firestoreIds.has(p.id))
           };
         });
       },
@@ -257,11 +254,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const unsubSettings = subscribeToSettings(
       (settings) => {
         if (settings) {
+          if (settings.adminPinHash) {
+            setAdminPinHashState(settings.adminPinHash);
+            localStorage.setItem('pelada_admin_pin_hash', settings.adminPinHash);
+          }
           setState(s => ({
             ...s,
             pixKey: settings.pixKey ?? s.pixKey,
-            maxPlayersPerTeam: settings.maxPlayersPerTeam ?? s.maxPlayersPerTeam,
-            numberOfTeams: settings.numberOfTeams ?? s.numberOfTeams,
+            maxPlayersPerTeam: settings.maxPlayersPerTeam ? Number(settings.maxPlayersPerTeam) : 4,
+            numberOfTeams: settings.numberOfTeams ? Number(settings.numberOfTeams) : 5,
             matchDurationMinutes: settings.matchDurationMinutes ?? s.matchDurationMinutes,
             currentTeams: Array.isArray(settings.currentTeams) && settings.currentTeams.length > 0 
               ? settings.currentTeams 
@@ -348,9 +349,79 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Delete player permanently from database
-  const deletePlayerAction = (id: string) => {
-    setState(s => ({ ...s, players: s.players.filter(p => p.id !== id) }));
-    deletePlayer(currentUserId, id);
+  const deletePlayerAction = async (id: string) => {
+    localStorage.setItem('pelada_roster_initialized', 'true');
+    setState(s => {
+      const remainingPlayers = s.players.filter(p => p.id !== id);
+      const updatedTeams = s.currentTeams.map(t => ({
+        ...t,
+        players: t.players.filter(p => p.id !== id)
+      }));
+      const updatedBench = s.benchPlayers.filter(p => p.id !== id);
+      return {
+        ...s,
+        players: remainingPlayers,
+        currentTeams: updatedTeams,
+        benchPlayers: updatedBench
+      };
+    });
+    await deletePlayer(currentUserId, id);
+    setState(s => {
+      saveSettings(currentUserId, {
+        currentTeams: s.currentTeams,
+        benchPlayers: s.benchPlayers
+      }, false);
+      return s;
+    });
+  };
+
+  // Clear entire roster permanently from database and app
+  const clearEntireRoster = async () => {
+    localStorage.setItem('pelada_roster_initialized', 'true');
+    const playerIds = state.players.map(p => p.id);
+    setState(s => ({
+      ...s,
+      players: [],
+      currentTeams: [],
+      benchPlayers: [],
+      teamQueue: [],
+    }));
+    await clearAllPlayersFromDb(currentUserId, playerIds);
+    await saveSettings(currentUserId, {
+      currentTeams: [],
+      benchPlayers: [],
+      teamQueue: [],
+    }, false);
+  };
+
+  // Reload default roster (20 players for 5 teams of 4)
+  const reloadDefaultRoster = async () => {
+    localStorage.setItem('pelada_roster_initialized', 'true');
+    const newPlayers = initialDefaultPlayers.map(p => ({
+      ...p,
+      isPresent: true,
+      isInjuredOrTired: false,
+      injuryReason: undefined
+    }));
+    setState(s => ({
+      ...s,
+      players: newPlayers,
+      numberOfTeams: 5,
+      maxPlayersPerTeam: 4,
+      currentTeams: [],
+      benchPlayers: [],
+      teamQueue: [],
+    }));
+    for (const p of newPlayers) {
+      await savePlayer(currentUserId, p, true);
+    }
+    await saveSettings(currentUserId, {
+      numberOfTeams: 5,
+      maxPlayersPerTeam: 4,
+      currentTeams: [],
+      benchPlayers: [],
+      teamQueue: [],
+    }, false);
   };
 
   // Toggle presence on match day (sem limite de vagas)
@@ -1182,6 +1253,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setState(s => ({ ...s, pixKey: clean }));
         saveSettings(currentUserId, { pixKey: clean }, false);
       },
+      clearEntireRoster,
+      reloadDefaultRoster,
       adminPin: '********',
       setAdminPin,
       exportBackup,
